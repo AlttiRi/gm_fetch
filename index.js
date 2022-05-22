@@ -2,16 +2,23 @@
 // @name         GM_Fetch Demo
 // @namespace    gh.alttiri
 // @description  GM_Fetch (wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.1
+// @version      0.1.0-2022.05.22
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
 // @connect      example.com
 // ==/UserScript==
 
+// ------------------------------------------------------------------------------------
+// Init
+// ------------------------------------------------------------------------------------
 
-// -----------------
-// ----- Demo ------
-// -----------------
+const globalFetch = ujs_getGlobalFetch();
+const fetch = GM_fetch;
+
+
+// ------------------------------------------------------------------------------------
+// Demo
+// ------------------------------------------------------------------------------------
 
 // Just open https://example.com/gm_fetch-demo page to execute this demo
 (async function() {
@@ -30,10 +37,20 @@
 })();
 
 
+// ------------------------------------------------------------------------------------
+// GM Util
+// ------------------------------------------------------------------------------------
 
-// -----------------
-// --- GM_Fetch ----
-// -----------------
+function ujs_getGlobalFetch() {
+    // --- [VM/GM + Firefox ~90+ + Enabled "Strict Tracking Protection"] fix --- //
+    return (globalThis.wrappedJSObject && typeof globalThis.wrappedJSObject.fetch === "function") ? function(resource, init = {}) {
+        if (init.headers instanceof Headers) {
+            // Since `Headers` are not allowed for structured cloning.
+            init.headers = Object.fromEntries(init.headers.entries());
+        }
+        return globalThis.wrappedJSObject.fetch(cloneInto(resource, document), cloneInto(init, document));
+    } : globalThis.fetch;
+}
 
 // The simplified `fetch` — wrapper for `GM.xmlHttpRequest`
 /* Using:
@@ -44,7 +61,7 @@ const {status, statusText} = response;
 const lastModifiedSeconds = response.headers.get("last-modified");
 const blob = await response.blob();
 */
-async function fetch(url, init = {}) {
+async function GM_fetch(url, init = {}) {
     const defaultInit = {method: "get"};
     const {headers, method} = {...defaultInit, ...init};
 
@@ -93,12 +110,11 @@ function parseHeaders(headersString) {
     }
     return headers;
 }
-// -----------------
 
 
-// -----------------
-// ----- Util ------
-// -----------------
+// ------------------------------------------------------------------------------------
+// Util
+// ------------------------------------------------------------------------------------
 function downloadBlob(blob, name, url = "") {
     const anchor = document.createElement("a");
     anchor.setAttribute("download", name || "");
