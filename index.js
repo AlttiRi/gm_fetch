@@ -2,7 +2,7 @@
 // @name         GM_Fetch Demo
 // @namespace    gh.alttiri
 // @description  GM_Fetch (wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.1.7-2022.05.22-dev
+// @version      0.1.8-2022.05.22-dev
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
 // @connect      example.com
@@ -12,8 +12,8 @@
 // Init
 // ------------------------------------------------------------------------------------
 
-const GM_fetch = getGM_fetch();
-const fetch = GM_fetch.webContextFetch;
+const GM_fetch = getGM_fetch();         // Just "import" it to use it
+const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 
 // ------------------------------------------------------------------------------------
 // Demo
@@ -54,8 +54,9 @@ function downloadBlob(blob, name, url = "") {
 
 function getGM_fetch() {
     const isStreamSupported = GM_xmlhttpRequest?.RESPONSE_TYPE_STREAM;
+    const fetch = getWebPageFetch();
 
-    function getGlobalFetch() {
+    function getWebPageFetch() {
         // --- [VM/GM + Firefox ~90+ + Enabled "Strict Tracking Protection"] fix --- //
         return (globalThis.wrappedJSObject && typeof globalThis.wrappedJSObject.fetch === "function") ? function(resource, init = {}) {
             if (init.headers instanceof Headers) {
@@ -139,20 +140,33 @@ function getGM_fetch() {
      const blob = await response.blob();
      * @return {Promise<Response>} */
     async function GM_fetch(url, fetchInit = {}) {
-        const defaultFetchInit = {method: "get", useStream: true};
-        const {headers, method, useStream} = {...defaultFetchInit, ...fetchInit};
+        const defaultFetchInit = {
+            method: "get",
+            // Extra props:
+            useStream: true, webContext: false, GM_extraOpts: {}
+        };
+        const opts = {...defaultFetchInit, ...fetchInit};
+        if (opts.webContext) {
+            delete opts.useStream;
+            delete opts.webContext;
+            delete opts.GM_extraOpts;
+            return fetch(url, opts);
+        }
+
+        const {headers, method, useStream, GM_extraOpts} = opts;
         const HEADERS_RECEIVED = 2;
         if (!isStreamSupported || !useStream) {
             return new Promise((resolve, _reject) => {
                 const blobPromise = new Promise((resolve, reject) => {
                     GM_xmlhttpRequest({
+                        ...GM_extraOpts,
                         url,
                         method,
                         headers,
                         responseType: "blob",
                         onload: (response) => resolve(response.response),
                         onerror: reject,
-                        onreadystatechange: onHeadersReceived
+                        onreadystatechange: onHeadersReceived,
                     });
                 });
                 blobPromise.catch(_reject);
@@ -173,10 +187,12 @@ function getGM_fetch() {
             return new Promise((resolve, _reject) => {
                 const responsePromise = new Promise((resolve, reject) => {
                     void GM_xmlhttpRequest({
+                        ...GM_extraOpts,
                         url,
                         method,
                         headers,
                         responseType: "stream",
+                        fetch: true,
                         onerror: reject,
                         onreadystatechange: onHeadersReceived
                     });
@@ -197,7 +213,7 @@ function getGM_fetch() {
     }
 
     GM_fetch.isStreamSupported = isStreamSupported;
-    GM_fetch.webContextFetch = getGlobalFetch();
+    GM_fetch.webContextFetch = fetch;
 
     return GM_fetch;
 }
