@@ -2,7 +2,7 @@
 // @name         GM_Fetch Demo
 // @namespace    gh.alttiri
 // @description  GM_Fetch (wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.1.3-2022.05.22-dev
+// @version      0.1.5-2022.05.22-dev
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
 // @connect      example.com
@@ -55,20 +55,61 @@ function ujs_getGlobalFetch() {
 /** The default Response always has {type: "default", redirected: false, url: ""} */
 class ExResponse extends Response {
     [Symbol.toStringTag] = "ExResponse";
-    constructor(body, options) {
-        super(body, options);
-        this._url = options.finalUrl;
-        this._redirected = options.url !== options.finalUrl;
+    constructor(body, {headers, status, statusText, url, finalUrl}) {
+        super(body, {status, statusText/*, headers*/});
+        this._url = finalUrl;
+        this._redirected = url !== finalUrl;
+        this._headers = headers; // `HeadersLike` is more user-friendly for debug than the original `Headers` object
     }
-    get redirected() {
-        return this._redirected;
+    get redirected() { return this._redirected; }
+    get url() { return this._url; }
+    get type() { return "basic"; }
+    /** @returns {HeadersLike} */
+    get headers() { return this._headers; }
+}
+class HeadersLike {
+    constructor(headers) {
+        headers?.entries().forEach((key, value) => {
+            this.append(key, value);
+        });
     }
-    get url() {
-        return this._url;
+    get(key) {
+        return this[key.toLowerCase()];
     }
-    get type() {
-        return "basic";
+    append(key, value) {
+        this[key.trim().toLowerCase()] = value.trim();
     }
+}
+/**
+ * Parses headers from `XMLHttpRequest.getAllResponseHeaders()` string
+ * @returns {HeadersLike} */
+function parseHeaders(headersString) {
+    const headers = new HeadersLike();
+    for (const line of headersString.trim().split("\n")) {
+        const [key, ...valueParts] = line.split(":"); // last-modified: Fri, 21 May 2021 14:46:56 GMT
+        const value = valueParts.join(":");
+        headers.append(key, value);
+    }
+    return headers;
+}
+class ExResponseLike {
+    constructor(blobPromise, {headers, status, statusText, url, finalUrl}) {
+        /** @type {Promise<Blob>} */
+        this._blobPromise = blobPromise;
+        this.headers = headers;
+        this.status = status;
+        this.statusText = statusText;
+        this.url = finalUrl;
+        this.redirected = url !== finalUrl;
+        this.type = "basic";
+        this.ok = status.toString().startsWith("2");
+        this.bodyUsed = false;
+        blobPromise.then(() => this.bodyUsed = true);
+    }
+    blob() {        return this._blobPromise; }
+    arrayBuffer() { return this._blobPromise.then(blob => blob.arrayBuffer()); }
+    text() {        return this._blobPromise.then(blob => blob.text()); }
+    json() {        return this._blobPromise.then(blob => blob.text()).then(text => JSON.parse(text)); }
 }
 
 // The simplified `fetch` — wrapper for `GM.xmlHttpRequest`
@@ -77,7 +118,7 @@ class ExResponse extends Response {
 
 const response = await fetch(url);
 const {status, statusText} = response;
-const lastModifiedSeconds = response.headers.get("last-modified");
+const lastModified = response.headers.get("last-modified");
 const blob = await response.blob();
 */
 async function GM_fetch(url, fetchInit = {}) {
@@ -101,19 +142,14 @@ async function GM_fetch(url, fetchInit = {}) {
             blobPromise.catch(_reject);
             function onHeadersReceived(gmResponse) {
                 const {
-                    readyState, responseHeaders, status, statusText
+                    readyState, responseHeaders, status, statusText, finalUrl
                 } = gmResponse;
                 if (readyState === HEADERS_RECEIVED) {
                     const headers = parseHeaders(responseHeaders);
-                    resolve({
-                        headers,
-                        status,
-                        statusText,
-                        arrayBuffer: () => blobPromise.then(blob => blob.arrayBuffer()),
-                        blob: () => blobPromise,
-                        json: () => blobPromise.then(blob => blob.text()).then(text => JSON.parse(text)),
-                        text: () => blobPromise.then(blob => blob.text()),
+                    const newResp = new ExResponseLike(blobPromise, {
+                        headers, status, statusText, url, finalUrl
                     });
+                    resolve(newResp);
                 }
             }
         });
@@ -142,19 +178,6 @@ async function GM_fetch(url, fetchInit = {}) {
             }
         });
     }
-}
-function parseHeaders(headersString) {
-    class Headers {
-        get(key) {
-            return this[key.toLowerCase()];
-        }
-    }
-    const headers = new Headers();
-    for (const line of headersString.trim().split("\n")) {
-        const [key, ...valueParts] = line.split(":"); // last-modified: Fri, 21 May 2021 14:46:56 GMT
-        headers[key.trim().toLowerCase()] = valueParts.join(":").trim();
-    }
-    return headers;
 }
 
 
