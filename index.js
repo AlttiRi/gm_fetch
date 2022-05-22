@@ -2,7 +2,7 @@
 // @name         GM_Fetch Demo
 // @namespace    gh.alttiri
 // @description  GM_Fetch (wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.1.2-2022.05.22-dev
+// @version      0.1.3-2022.05.22-dev
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
 // @connect      example.com
@@ -81,11 +81,11 @@ const lastModifiedSeconds = response.headers.get("last-modified");
 const blob = await response.blob();
 */
 async function GM_fetch(url, fetchInit = {}) {
-    const defaultFetchInit = {method: "get"};
-    const {headers, method} = {...defaultFetchInit, ...fetchInit};
+    const defaultFetchInit = {method: "get", useStream: true};
+    const {headers, method, useStream} = {...defaultFetchInit, ...fetchInit};
     const HEADERS_RECEIVED = 2;
     const isStreamSupported = GM_xmlhttpRequest?.RESPONSE_TYPE_STREAM;
-    if (!isStreamSupported) {
+    if (!isStreamSupported || !useStream) {
         return new Promise((resolve, _reject) => {
             const blobPromise = new Promise((resolve, reject) => {
                 GM_xmlhttpRequest({
@@ -126,22 +126,17 @@ async function GM_fetch(url, fetchInit = {}) {
                     headers,
                     responseType: "stream",
                     onerror: reject,
-                    onreadystatechange: onHeadersReceived,
-                    onloadstart: (gmResponse) => console.log("[onloadstart]", gmResponse) // debug
+                    onreadystatechange: onHeadersReceived
                 });
             });
             responsePromise.catch(_reject);
             function onHeadersReceived(gmResponse) {
-                console.log("[onreadystatechange]", gmResponse); // debug
                 const {
                     readyState, responseHeaders, status, statusText, finalUrl, response: readableStream
                 } = gmResponse;
                 if (readyState === HEADERS_RECEIVED) {
                     const headers = parseHeaders(responseHeaders);
                     const newResp = new ExResponse(readableStream, {headers, status, statusText, url, finalUrl});
-                    if (status === 0) {
-                        console.warn("status is 0!", {status, statusText});
-                    }
                     resolve(newResp);
                 }
             }
