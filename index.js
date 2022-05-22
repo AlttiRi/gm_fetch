@@ -2,7 +2,7 @@
 // @name         GM_Fetch Demo
 // @namespace    gh.alttiri
 // @description  GM_Fetch (wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.1.5-2022.05.22-dev
+// @version      0.1.6-2022.05.22-dev
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
 // @connect      example.com
@@ -56,7 +56,10 @@ function ujs_getGlobalFetch() {
 class ExResponse extends Response {
     [Symbol.toStringTag] = "ExResponse";
     constructor(body, {headers, status, statusText, url, finalUrl}) {
-        super(body, {status, statusText/*, headers*/});
+        super(body, {status, statusText, headers: {
+            ...headers,
+            "content-type": headers.get("content-type").split("; ")[0] // Fixes Blob type ("text/html; charset=UTF-8")
+        }});
         this._url = finalUrl;
         this._redirected = url !== finalUrl;
         this._headers = headers; // `HeadersLike` is more user-friendly for debug than the original `Headers` object
@@ -92,7 +95,7 @@ function parseHeaders(headersString) {
     }
     return headers;
 }
-class ExResponseLike {
+class ResponseLike {
     constructor(blobPromise, {headers, status, statusText, url, finalUrl}) {
         /** @type {Promise<Blob>} */
         this._blobPromise = blobPromise;
@@ -146,7 +149,7 @@ async function GM_fetch(url, fetchInit = {}) {
                 } = gmResponse;
                 if (readyState === HEADERS_RECEIVED) {
                     const headers = parseHeaders(responseHeaders);
-                    const newResp = new ExResponseLike(blobPromise, {
+                    const newResp = new ResponseLike(blobPromise, {
                         headers, status, statusText, url, finalUrl
                     });
                     resolve(newResp);
