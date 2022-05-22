@@ -2,7 +2,7 @@
 // @name         GM_Fetch Demo
 // @namespace    gh.alttiri
 // @description  GM_Fetch (wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.1.0-2022.05.22
+// @version      0.1.1-2022.05.22-dev
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
 // @connect      example.com
@@ -61,41 +61,76 @@ const {status, statusText} = response;
 const lastModifiedSeconds = response.headers.get("last-modified");
 const blob = await response.blob();
 */
-async function GM_fetch(url, init = {}) {
-    const defaultInit = {method: "get"};
-    const {headers, method} = {...defaultInit, ...init};
-
-    return new Promise((resolve, _reject) => {
-        const blobPromise = new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                url,
-                method,
-                headers,
-                responseType: "blob",
-                onload: (response) => resolve(response.response),
-                onerror: reject,
-                onreadystatechange: onHeadersReceived
-            });
-        });
-        blobPromise.catch(_reject);
-        function onHeadersReceived(response) {
-            const {
-                readyState, responseHeaders, status, statusText
-            } = response;
-            if (readyState === 2) { // HEADERS_RECEIVED
-                const headers = parseHeaders(responseHeaders);
-                resolve({
+async function GM_fetch(url, fetchInit = {}) {
+    const defaultFetchInit = {method: "get"};
+    const {headers, method} = {...defaultFetchInit, ...fetchInit};
+    const HEADERS_RECEIVED = 2;
+    const isStreamSupported = GM_xmlhttpRequest?.RESPONSE_TYPE_STREAM;
+    if (!isStreamSupported) {
+        return new Promise((resolve, _reject) => {
+            const blobPromise = new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    url,
+                    method,
                     headers,
-                    status,
-                    statusText,
-                    arrayBuffer: () => blobPromise.then(blob => blob.arrayBuffer()),
-                    blob: () => blobPromise,
-                    json: () => blobPromise.then(blob => blob.text()).then(text => JSON.parse(text)),
-                    text: () => blobPromise.then(blob => blob.text()),
+                    responseType: "blob",
+                    onload: (response) => resolve(response.response),
+                    onerror: reject,
+                    onreadystatechange: onHeadersReceived
                 });
+            });
+            blobPromise.catch(_reject);
+            function onHeadersReceived(gmResponse) {
+                const {
+                    readyState, responseHeaders, status, statusText
+                } = gmResponse;
+                if (readyState === HEADERS_RECEIVED) {
+                    const headers = parseHeaders(responseHeaders);
+                    resolve({
+                        headers,
+                        status,
+                        statusText,
+                        arrayBuffer: () => blobPromise.then(blob => blob.arrayBuffer()),
+                        blob: () => blobPromise,
+                        json: () => blobPromise.then(blob => blob.text()).then(text => JSON.parse(text)),
+                        text: () => blobPromise.then(blob => blob.text()),
+                    });
+                }
             }
-        }
-    });
+        });
+    } else {
+        return new Promise((resolve, _reject) => {
+            const responsePromise = new Promise((resolve, reject) => {
+                void GM_xmlhttpRequest({
+                    url,
+                    method,
+                    headers,
+                    responseType: "stream",
+                    onerror: reject,
+                    onreadystatechange: onHeadersReceived,
+                    onloadstart: (gmResponse) => console.log("[onloadstart]", gmResponse) // debug
+                });
+            });
+            responsePromise.catch(_reject);
+            function onHeadersReceived(gmResponse) {
+                console.log("[onreadystatechange]", gmResponse); // debug
+                const {
+                    readyState, responseHeaders, status, statusText, response: readableStream
+                } = gmResponse;
+                if (readyState === HEADERS_RECEIVED) {
+                    const headers = parseHeaders(responseHeaders);
+                    let newResp;
+                    if (status === 0) {
+                        console.warn("status is 0!", {status, statusText});
+                        newResp = new Response(readableStream, {headers, /*status, statusText*/});
+                    } else {
+                        newResp = new Response(readableStream, {headers, status, statusText});
+                    }
+                    resolve(newResp);
+                }
+            }
+        });
+    }
 }
 function parseHeaders(headersString) {
     class Headers {
