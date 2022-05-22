@@ -2,7 +2,7 @@
 // @name         GM_Fetch Demo
 // @namespace    gh.alttiri
 // @description  GM_Fetch (wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.1.1-2022.05.22-dev
+// @version      0.1.2-2022.05.22-dev
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
 // @connect      example.com
@@ -50,6 +50,25 @@ function ujs_getGlobalFetch() {
         }
         return globalThis.wrappedJSObject.fetch(cloneInto(resource, document), cloneInto(init, document));
     } : globalThis.fetch;
+}
+
+/** The default Response always has {type: "default", redirected: false, url: ""} */
+class ExResponse extends Response {
+    [Symbol.toStringTag] = "ExResponse";
+    constructor(body, options) {
+        super(body, options);
+        this._url = options.finalUrl;
+        this._redirected = options.url !== options.finalUrl;
+    }
+    get redirected() {
+        return this._redirected;
+    }
+    get url() {
+        return this._url;
+    }
+    get type() {
+        return "basic";
+    }
 }
 
 // The simplified `fetch` — wrapper for `GM.xmlHttpRequest`
@@ -115,16 +134,13 @@ async function GM_fetch(url, fetchInit = {}) {
             function onHeadersReceived(gmResponse) {
                 console.log("[onreadystatechange]", gmResponse); // debug
                 const {
-                    readyState, responseHeaders, status, statusText, response: readableStream
+                    readyState, responseHeaders, status, statusText, finalUrl, response: readableStream
                 } = gmResponse;
                 if (readyState === HEADERS_RECEIVED) {
                     const headers = parseHeaders(responseHeaders);
-                    let newResp;
+                    const newResp = new ExResponse(readableStream, {headers, status, statusText, url, finalUrl});
                     if (status === 0) {
                         console.warn("status is 0!", {status, statusText});
-                        newResp = new Response(readableStream, {headers, /*status, statusText*/});
-                    } else {
-                        newResp = new Response(readableStream, {headers, status, statusText});
                     }
                     resolve(newResp);
                 }
