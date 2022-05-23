@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.3-2022.05.23-dev
+// @version      0.2.4-2022.05.23-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -228,7 +228,6 @@ function getGM_fetch() {
             return new Promise((resolve, _reject) => {
                 const blobPromise = new Promise((resolve, reject) => {
                     GM_xmlhttpRequest({
-                        binary: true, // It should be preferable, but you can overwrite with `opts.extra`.
                         ...opts.extra,
                         url,
                         method,
