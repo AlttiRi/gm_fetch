@@ -2,7 +2,7 @@
 // @name         GM_fetch Demo (2022.05.22)
 // @namespace    gh.alttiri
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.0-2022.05.23-dev
+// @version      0.2.1-2022.05.23-dev
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
 // @connect      ipv4.download.thinkbroadband.com
@@ -222,6 +222,7 @@ function getGM_fetch() {
             return new Promise((resolve, _reject) => {
                 const blobPromise = new Promise((resolve, reject) => {
                     GM_xmlhttpRequest({
+                        binary: true, // It should be preferable, but you can overwrite with `opts.extra`.
                         ...opts.extra,
                         url,
                         method,
@@ -255,7 +256,8 @@ function getGM_fetch() {
                         url,
                         method,
                         headers,
-                        responseType: "stream", /* fetch: true, */
+                        responseType: "stream",
+                     /* fetch: true, */ // Not required, since it already has `responseType: "stream"`.
                         onerror: reject,
                         onreadystatechange: onHeadersReceived
                     });
