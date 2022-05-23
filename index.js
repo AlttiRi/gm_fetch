@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.2-2022.05.23-dev
+// @version      0.2.3-2022.05.23-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -36,6 +36,7 @@ const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
     const response = await GM_fetch(url, {
         method: "post",
         body: new Blob(["xxx"]),
+        referrer: "https://example.net",
         extra: {
             useStream: false,
             onprogress: ({loaded, total, lengthComputable}) => {console.log({loaded, total, lengthComputable});}
@@ -104,7 +105,7 @@ function getGM_fetch() {
     }
     class HeadersLike { // Note: the original `Headers` throws an error if `key` requires `.trim()`
         constructor(headers) {
-            headers?.entries().forEach((key, value) => {
+            headers && (Object.entries(headers)).forEach((key, value) => {
                 this.append(key, value);
             });
         }
@@ -202,7 +203,7 @@ function getGM_fetch() {
      const blob = await response.blob();
      * @return {Promise<Response>} */
     async function GM_fetch(url, fetchInit = {}) {
-        const defaultFetchInit = {method: "get"};
+        const defaultFetchInit = {method: "get", headers: {}};
         const defaultExtra = {useStream: true, webContext: false, onprogress: null};
         const opts = {
             ...defaultFetchInit,
@@ -217,9 +218,11 @@ function getGM_fetch() {
             return fetch(url, opts);
         }
 
-        const {headers, method, body, extra: {useStream, onprogress}} = opts;
+        const {headers, method, body, referrer, extra: {useStream, onprogress}} = opts;
         delete opts.extra.webContext;
         delete opts.extra.useStream;
+        const _headers = new HeadersLike(headers);
+        _headers.append("referer", referrer);
 
         if (!isStreamSupported || !useStream) {
             return new Promise((resolve, _reject) => {
@@ -229,12 +232,12 @@ function getGM_fetch() {
                         ...opts.extra,
                         url,
                         method,
-                        headers,
+                        headers: _headers,
                         responseType: "blob",
                         onload: (response) => resolve(response.response),
                         onerror: reject,
                         onreadystatechange: onHeadersReceived,
-                        onprogress,
+                        onprogress, // todo
                         data: body,
                     });
                 });
@@ -259,7 +262,7 @@ function getGM_fetch() {
                         ...opts.extra,
                         url,
                         method,
-                        headers,
+                        headers: _headers,
                         responseType: "stream",
                      /* fetch: true, */ // Not required, since it already has `responseType: "stream"`.
                         onerror: reject,
