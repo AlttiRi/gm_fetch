@@ -2,7 +2,7 @@
 // @name         GM_fetch Demo (2022.05.22)
 // @namespace    gh.alttiri
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.1.8-2022.05.22-dev
+// @version      0.2.0-2022.05.23-dev
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
 // @connect      ipv4.download.thinkbroadband.com
