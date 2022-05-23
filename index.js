@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
-// @namespace    gh.alttiri
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.1-2022.05.23-dev
+// @version      0.2.2-2022.05.23-dev
+// @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
 // @connect      ipv4.download.thinkbroadband.com
@@ -14,9 +14,9 @@
 
 let url;
 // url = "http://ipv4.download.thinkbroadband.com/10MB.zip?t=" + Date.now(); // 408 // error
-url = "https://giant.gfycat.com/ShockedSecondaryFiddlercrab.mp4";         // 200   // 32 MB
+// url = "https://giant.gfycat.com/ShockedSecondaryFiddlercrab.mp4";         // 200   // 32 MB
 // url = "https://example.com/xxx";                                       // 404
-// url = "https://example.com/"; // 200
+url = "https://example.com/"; // 200
 // url = "https://google.com/";   // .redirected, .url
 
 // ------------------------------------------------------------------------------------
@@ -34,8 +34,10 @@ const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 (async function() {
     console.log("GM_fetch:", url);
     const response = await GM_fetch(url, {
+        method: "post",
+        body: new Blob(["xxx"]),
         extra: {
-            useStream: true,
+            useStream: false,
             onprogress: ({loaded, total, lengthComputable}) => {console.log({loaded, total, lengthComputable});}
         }
     });
@@ -154,7 +156,8 @@ function getGM_fetch() {
         const lengthComputable = identityContentEncodings.has(response.headers.get("Content-Encoding"));
         const compressed = !lengthComputable;
         const contentLength = parseInt(response.headers.get("Content-Length"));
-        const total = lengthComputable ? (isNaN(contentLength) ? 0 : contentLength) : 0; // Original XHR behaviour; in TM it equals to `contentLength`.
+        // Original XHR behaviour; in TM it equals to `contentLength`, or `-1` if `contentLength` is `null`.
+        const total = lengthComputable ? (isNaN(contentLength) ? 0 : contentLength) : 0;
 
         let loaded = 0;
         const reader = response.body.getReader();
@@ -214,7 +217,7 @@ function getGM_fetch() {
             return fetch(url, opts);
         }
 
-        const {headers, method, extra: {useStream, onprogress}} = opts;
+        const {headers, method, body, extra: {useStream, onprogress}} = opts;
         delete opts.extra.webContext;
         delete opts.extra.useStream;
 
@@ -231,7 +234,8 @@ function getGM_fetch() {
                         onload: (response) => resolve(response.response),
                         onerror: reject,
                         onreadystatechange: onHeadersReceived,
-                        onprogress
+                        onprogress,
+                        data: body,
                     });
                 });
                 blobPromise.catch(_reject);
@@ -259,7 +263,8 @@ function getGM_fetch() {
                         responseType: "stream",
                      /* fetch: true, */ // Not required, since it already has `responseType: "stream"`.
                         onerror: reject,
-                        onreadystatechange: onHeadersReceived
+                        onreadystatechange: onHeadersReceived,
+                        data: body,
                     });
                 });
                 responsePromise.catch(_reject);
