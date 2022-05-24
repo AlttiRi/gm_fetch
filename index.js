@@ -272,7 +272,10 @@ function getGM_fetch() {
                             _onprogress({loaded, ...onProgressProps});
                         } : undefined,
                         onerror: reject,
-                        onabort: () => {console.log("onabort")},
+                        onabort: () => {
+                            console.log("onabort");
+                            reject(new DOMException("The user aborted a request.", "AbortError"));
+                        },
                         data: body,
                     });
                     handleAbort(abort);
@@ -307,7 +310,10 @@ function getGM_fetch() {
                         },
                         onreadystatechange: onHeadersReceived,
                         onerror: reject,
-                        onabort: () => {console.log("onabort")},
+                        onabort: () => {
+                            console.log("onabort");
+                            reject(new DOMException("The user aborted a request.", "AbortError"));
+                        },
                         data: body,
                     });
                     handleAbort(abort);
