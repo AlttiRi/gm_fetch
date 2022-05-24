@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.9-2022.05.23-dev
+// @version      0.2.10-2022.05.23-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -34,14 +34,14 @@ const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 (async function() {
     console.log("GM_fetch:", url);
     let controller = new AbortController();
-    controller.abort();
+    //controller.abort();
     const response = await GM_fetch(url, {
         //method: "post",
         //body: new Blob(["xxx"]),
         referrer: "https://example.net",
         signal: controller.signal,
         extra: {
-            //useStream: false,
+            useStream: false,
             onprogress: (props) => {console.log(props);}
         }
     });
@@ -201,7 +201,6 @@ function getGM_fetch() {
     }
 
 
-    const HEADERS_RECEIVED = 2;
 
     /**
      * The simplified `fetch` — a wrapper for `GM_xmlHttpRequest`.
@@ -235,29 +234,47 @@ function getGM_fetch() {
         _headers.append("referer", referrer);
 
         let abortCallback;
-        let finished = false;
+        let done = false;
         function handleAbort(gmAbort) {
             if (!signal) {
                 return;
             }
             if (signal.aborted) {
                 gmAbort();
-                const id = setInterval(() => finished ? clearInterval(id) : gmAbort(), 1); // VM fix.
+                const id = setInterval(() => done ? clearInterval(id) : gmAbort(), 1); // VM fix.
                 return;
             }
             abortCallback = () => gmAbort();
             signal.addEventListener("abort", abortCallback);
         }
-        function removeAbortListener() {
+        function onDone() {
             signal?.removeEventListener("abort", abortCallback);
-            finished = true;
+            done = true;
+        }
+
+        const HEADERS_RECEIVED = 2;
+        const DONE = 4;
+        function getOnReadyStateChange({onHeadersReceived}) {
+            return function onReadyStatechange(gmResponse) {
+                const {readyState} = gmResponse;
+                // console.log("onReadyStatechange", readyState);
+                if (readyState === HEADERS_RECEIVED) {
+                    console.log("HEADERS_RECEIVED");
+                    onHeadersReceived(gmResponse);
+                }
+                // It does not trigger on `abort` and `error`, while native XHR does. (In both TM and VM)
+                // else if (readyState === DONE) { // Only on `onload`. Is a bug? // Also in not the latest beta in VM it fires multiple times.
+                //     console.log("DONE");
+                //     onDone();
+                // }
+            }
         }
 
         if (!isStreamSupported || !useStream) {
             const _onprogress = onprogress;
             let onProgressProps = {}; // Will be inited on HEADERS_RECEIVED. It used to have the same behaviour in TM and VM.
-
             return new Promise((resolve, _reject) => {
+                const onReadyStateChange = getOnReadyStateChange({onHeadersReceived});
                 const blobPromise = new Promise((resolve, reject) => {
                     const {abort} = GM_xmlhttpRequest({
                         ...opts.extra,
@@ -265,18 +282,23 @@ function getGM_fetch() {
                         method,
                         headers: _headers,
                         responseType: "blob",
-                        onload: response => {
-                            removeAbortListener();
-                            resolve(response.response);
+                        onload: gmResponse => {
+                            console.log("onload");
+                            onDone();
+                            resolve(gmResponse.response);
                         },
-                        onreadystatechange: onHeadersReceived,
+                        onreadystatechange: onReadyStateChange,
                         onprogress: _onprogress ? ({loaded/*, total, lengthComputable*/}) => {
                             _onprogress({loaded, ...onProgressProps});
                         } : undefined,
-                        onerror: reject,
+                        onerror: error => {
+                            console.log("onerror");
+                            onDone();
+                            reject(error);
+                        },
                         onabort: () => {
                             console.log("onabort");
-                            removeAbortListener();
+                            onDone();
                             reject(new DOMException("The user aborted a request.", "AbortError"));
                         },
                         data: body,
@@ -285,21 +307,18 @@ function getGM_fetch() {
                 });
                 blobPromise.catch(_reject);
                 function onHeadersReceived(gmResponse) {
-                    const {
-                        readyState, responseHeaders, status, statusText, finalUrl
-                    } = gmResponse;
-                    if (readyState === HEADERS_RECEIVED) {
-                        const headers = parseHeaders(responseHeaders);
-                        const response = new ResponseLike(blobPromise, {
-                            headers, status, statusText, url, finalUrl
-                        });
-                        onProgressProps = getOnProgressProps(response);
-                        resolve(response);
-                    }
+                    const {responseHeaders, status, statusText, finalUrl} = gmResponse;
+                    const headers = parseHeaders(responseHeaders);
+                    const response = new ResponseLike(blobPromise, {
+                        headers, status, statusText, url, finalUrl
+                    });
+                    onProgressProps = getOnProgressProps(response);
+                    resolve(response);
                 }
             });
         } else {
             return new Promise((resolve, _reject) => {
+                const onReadyStateChange = getOnReadyStateChange({onHeadersReceived});
                 const responsePromise = new Promise((resolve, reject) => {
                     const {abort} = GM_xmlhttpRequest({
                         ...opts.extra,
@@ -308,14 +327,19 @@ function getGM_fetch() {
                         headers: _headers,
                         responseType: "stream",
                      /* fetch: true, */ // Not required, since it already has `responseType: "stream"`.
-                        onload: response => {
-                            removeAbortListener();
+                        onload: gmResponse => {
+                            console.log("onload");
+                            onDone();
                         },
-                        onreadystatechange: onHeadersReceived,
-                        onerror: reject,
+                        onreadystatechange: onReadyStateChange,
+                        onerror: error => {
+                            console.log("onerror");
+                            onDone();
+                            reject(error);
+                        },
                         onabort: () => {
                             console.log("onabort");
-                            removeAbortListener();
+                            onDone();
                             reject(new DOMException("The user aborted a request.", "AbortError"));
                         },
                         data: body,
@@ -325,17 +349,15 @@ function getGM_fetch() {
                 responsePromise.catch(_reject);
                 function onHeadersReceived(gmResponse) {
                     const {
-                        readyState, responseHeaders, status, statusText, finalUrl, response: readableStream
+                        responseHeaders, status, statusText, finalUrl, response: readableStream
                     } = gmResponse;
-                    if (readyState === HEADERS_RECEIVED) {
-                        const headers = parseHeaders(responseHeaders);
-                        const redirected = url !== finalUrl;
-                        let response = new ResponseEx(readableStream, {headers, status, statusText, url, redirected});
-                        if (onprogress) {
-                            response = responseProgressProxy(response, onprogress);
-                        }
-                        resolve(response);
+                    const headers = parseHeaders(responseHeaders);
+                    const redirected = url !== finalUrl;
+                    let response = new ResponseEx(readableStream, {headers, status, statusText, url, redirected});
+                    if (onprogress) {
+                        response = responseProgressProxy(response, onprogress);
                     }
+                    resolve(response);
                 }
             });
         }
