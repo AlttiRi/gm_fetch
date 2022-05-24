@@ -14,9 +14,9 @@
 
 let url;
 // url = "http://ipv4.download.thinkbroadband.com/10MB.zip?t=" + Date.now(); // 408 // error
-// url = "https://giant.gfycat.com/ShockedSecondaryFiddlercrab.mp4";         // 200   // 32 MB
+ url = "https://giant.gfycat.com/ShockedSecondaryFiddlercrab.mp4";         // 200   // 32 MB
 // url = "https://example.com/xxx";                                       // 404
-url = "https://example.com/"; // 200
+//url = "https://example.com/"; // 200
 // url = "https://google.com/";   // .redirected, .url
 
 // ------------------------------------------------------------------------------------
@@ -34,12 +34,12 @@ const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 (async function() {
     console.log("GM_fetch:", url);
     const response = await GM_fetch(url, {
-        method: "post",
-        body: new Blob(["xxx"]),
+        //method: "post",
+        //body: new Blob(["xxx"]),
         referrer: "https://example.net",
         extra: {
-            useStream: false,
-            onprogress: ({loaded, total, lengthComputable}) => {console.log({loaded, total, lengthComputable});}
+            //useStream: false,
+            onprogress: (props) => {console.log(props);}
         }
     });
     console.log(response);
@@ -153,18 +153,23 @@ function getGM_fetch() {
     }
 
     const identityContentEncodings = new Set([null, "identity", "no encoding"]);
-    function getOnProgressProps(headers) {
+    function getOnProgressProps(response) {
+        const {headers, status, statusText, url, redirected, ok} = response;
         const lengthComputable = identityContentEncodings.has(headers.get("Content-Encoding"));
         const compressed = !lengthComputable;
         const contentLength = parseInt(headers.get("Content-Length"));
         // Original XHR behaviour; in TM it equals to `contentLength`, or `-1` if `contentLength` is `null`.
         const total = lengthComputable ? (isNaN(contentLength) ? 0 : contentLength) : 0;
 
-        return {total, lengthComputable, compressed, contentLength};
+        return {
+            total, lengthComputable,
+            compressed, contentLength,
+            headers, status, statusText, url, redirected, ok
+        };
     }
 
     function responseProgressProxy(response, onProgress) {
-        const onProgressProps = getOnProgressProps(response.headers);
+        const onProgressProps = getOnProgressProps(response);
         let loaded = 0;
         const reader = response.body.getReader();
         const readableStream = new ReadableStream({
@@ -254,11 +259,11 @@ function getGM_fetch() {
                     } = gmResponse;
                     if (readyState === HEADERS_RECEIVED) {
                         const headers = parseHeaders(responseHeaders);
-                        onProgressProps = getOnProgressProps(headers);
-                        const newResp = new ResponseLike(blobPromise, {
+                        const response = new ResponseLike(blobPromise, {
                             headers, status, statusText, url, finalUrl
                         });
-                        resolve(newResp);
+                        onProgressProps = getOnProgressProps(response);
+                        resolve(response);
                     }
                 }
             });
@@ -285,11 +290,11 @@ function getGM_fetch() {
                     if (readyState === HEADERS_RECEIVED) {
                         const headers = parseHeaders(responseHeaders);
                         const redirected = url !== finalUrl;
-                        let newResp = new ResponseEx(readableStream, {headers, status, statusText, url, redirected});
+                        let response = new ResponseEx(readableStream, {headers, status, statusText, url, redirected});
                         if (onprogress) {
-                            newResp = responseProgressProxy(newResp, onprogress);
+                            response = responseProgressProxy(response, onprogress);
                         }
-                        resolve(newResp);
+                        resolve(response);
                     }
                 }
             });
