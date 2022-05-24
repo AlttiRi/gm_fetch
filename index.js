@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.6-2022.05.23-dev
+// @version      0.2.7-2022.05.23-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -33,10 +33,12 @@ const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 // Just open https://example.com/gm_fetch-demo page to execute this demo
 (async function() {
     console.log("GM_fetch:", url);
+    let controller = new AbortController();
     const response = await GM_fetch(url, {
         //method: "post",
         //body: new Blob(["xxx"]),
         referrer: "https://example.net",
+        signal: controller.signal,
         extra: {
             //useStream: false,
             onprogress: (props) => {console.log(props);}
@@ -225,11 +227,27 @@ function getGM_fetch() {
             return fetch(url, opts);
         }
 
-        const {headers, method, body, referrer, extra: {useStream, onprogress}} = opts;
+        const {headers, method, body, referrer, signal, extra: {useStream, onprogress}} = opts;
         delete opts.extra.webContext;
         delete opts.extra.useStream;
         const _headers = new HeadersLike(headers);
         _headers.append("referer", referrer);
+
+        let abortCallback;
+        function handleAbort(gmAbort) {
+            if (!signal) {
+                return;
+            }
+            if (signal.aborted) {
+                gmAbort();
+                return;
+            }
+            abortCallback = () => gmAbort();
+            signal.addEventListener("abort", abortCallback);
+        }
+        function removeAbortListener() {
+            signal?.removeEventListener("abort", abortCallback);
+        }
 
         if (!isStreamSupported || !useStream) {
             const _onprogress = onprogress;
@@ -237,20 +255,24 @@ function getGM_fetch() {
 
             return new Promise((resolve, _reject) => {
                 const blobPromise = new Promise((resolve, reject) => {
-                    GM_xmlhttpRequest({
+                    const {abort} = GM_xmlhttpRequest({
                         ...opts.extra,
                         url,
                         method,
                         headers: _headers,
                         responseType: "blob",
-                        onload: (response) => resolve(response.response),
-                        onerror: reject,
-                        onreadystatechange: onHeadersReceived,
-                        onprogress: ({loaded/*, total, lengthComputable*/}) => {
-                            _onprogress({loaded, ...onProgressProps});
+                        onload: response => {
+                            removeAbortListener();
+                            resolve(response.response);
                         },
+                        onreadystatechange: onHeadersReceived,
+                        onprogress: _onprogress ? ({loaded/*, total, lengthComputable*/}) => {
+                            _onprogress({loaded, ...onProgressProps});
+                        } : undefined,
+                        onerror: reject,
                         data: body,
                     });
+                    handleAbort(abort);
                 });
                 blobPromise.catch(_reject);
                 function onHeadersReceived(gmResponse) {
@@ -270,17 +292,21 @@ function getGM_fetch() {
         } else {
             return new Promise((resolve, _reject) => {
                 const responsePromise = new Promise((resolve, reject) => {
-                    void GM_xmlhttpRequest({
+                    const {abort} = GM_xmlhttpRequest({
                         ...opts.extra,
                         url,
                         method,
                         headers: _headers,
                         responseType: "stream",
                      /* fetch: true, */ // Not required, since it already has `responseType: "stream"`.
-                        onerror: reject,
+                        onload: response => {
+                            removeAbortListener();
+                        },
                         onreadystatechange: onHeadersReceived,
+                        onerror: reject,
                         data: body,
                     });
+                    handleAbort(abort);
                 });
                 responsePromise.catch(_reject);
                 function onHeadersReceived(gmResponse) {
