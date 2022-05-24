@@ -34,6 +34,7 @@ const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 (async function() {
     console.log("GM_fetch:", url);
     let controller = new AbortController();
+    controller.abort();
     const response = await GM_fetch(url, {
         //method: "post",
         //body: new Blob(["xxx"]),
@@ -240,6 +241,7 @@ function getGM_fetch() {
             }
             if (signal.aborted) {
                 gmAbort();
+                setTimeout(gmAbort, 0); // VM fix.
                 return;
             }
             abortCallback = () => gmAbort();
@@ -270,6 +272,7 @@ function getGM_fetch() {
                             _onprogress({loaded, ...onProgressProps});
                         } : undefined,
                         onerror: reject,
+                        onabort: () => {console.log("onabort")},
                         data: body,
                     });
                     handleAbort(abort);
@@ -304,6 +307,7 @@ function getGM_fetch() {
                         },
                         onreadystatechange: onHeadersReceived,
                         onerror: reject,
+                        onabort: () => {console.log("onabort")},
                         data: body,
                     });
                     handleAbort(abort);
