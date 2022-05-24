@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.11-2022.05.23-dev
+// @version      0.2.12-2022.05.23-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -257,50 +257,52 @@ function getGM_fetch() {
         function getOnReadyStateChange({onHeadersReceived}) {
             return function onReadyStatechange(gmResponse) {
                 const {readyState} = gmResponse;
-                // console.log("onReadyStatechange", readyState);
                 if (readyState === HEADERS_RECEIVED) {
-                    console.log("HEADERS_RECEIVED");
                     onHeadersReceived(gmResponse);
                 }
                 // It does not trigger on `abort` and `error`, while native XHR does. (In both TM and VM)
                 // else if (readyState === DONE) { // Only on `onload`. Is a bug? // Also it fires multiple times in non the latest VM beta.
-                //     console.log("DONE");
                 //     onDone();
                 // }
             }
+        }
+
+        function getOnCancel(reject) {
+            return {
+                onerror(gmResponse) {
+                    onDone();
+                    reject(new TypeError("Failed to fetch"));
+                },
+                onabort() {
+                    onDone();
+                    reject(new DOMException("The user aborted a request.", "AbortError"));
+                },
+            };
         }
 
         if (!isStreamSupported || !useStream) {
             const _onprogress = onprogress;
             let onProgressProps = {}; // Will be inited on HEADERS_RECEIVED. It used to have the same behaviour in TM and VM.
             return new Promise((resolve, _reject) => {
-                const onReadyStateChange = getOnReadyStateChange({onHeadersReceived});
+                const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
                 const blobPromise = new Promise((resolve, reject) => {
+                    const {onabort, onerror} = getOnCancel(reject);
                     const {abort} = GM_xmlhttpRequest({
                         ...opts.extra,
                         url,
                         method,
                         headers: _headers,
                         responseType: "blob",
-                        onload: gmResponse => {
-                            console.log("onload");
+                        onload(gmResponse) {
                             onDone();
                             resolve(gmResponse.response);
                         },
-                        onreadystatechange: onReadyStateChange,
+                        onreadystatechange,
                         onprogress: _onprogress ? ({loaded/*, total, lengthComputable*/}) => {
                             _onprogress({loaded, ...onProgressProps});
                         } : undefined,
-                        onerror: gmResponse => {
-                            console.log("onerror");
-                            onDone();
-                            reject(new TypeError("Failed to fetch"));
-                        },
-                        onabort: () => {
-                            console.log("onabort");
-                            onDone();
-                            reject(new DOMException("The user aborted a request.", "AbortError"));
-                        },
+                        onerror,
+                        onabort,
                         data: body,
                     });
                     handleAbort(abort);
@@ -318,7 +320,8 @@ function getGM_fetch() {
             });
         } else {
             return new Promise((resolve, reject) => {
-                const onReadyStateChange = getOnReadyStateChange({onHeadersReceived});
+                const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
+                const {onabort, onerror} = getOnCancel(reject);
                 const {abort} = GM_xmlhttpRequest({
                     ...opts.extra,
                     url,
@@ -326,21 +329,12 @@ function getGM_fetch() {
                     headers: _headers,
                     responseType: "stream",
                     /* fetch: true, */ // Not required, since it already has `responseType: "stream"`.
-                    onload: gmResponse => {
-                        console.log("onload");
+                    onload(gmResponse) {
                         onDone();
                     },
-                    onreadystatechange: onReadyStateChange,
-                    onerror: gmResponse => {
-                        console.log("onerror");
-                        onDone();
-                        reject(new TypeError("Failed to fetch"));
-                    },
-                    onabort: () => {
-                        console.log("onabort");
-                        onDone();
-                        reject(new DOMException("The user aborted a request.", "AbortError"));
-                    },
+                    onreadystatechange,
+                    onerror,
+                    onabort,
                     data: body,
                 });
                 handleAbort(abort);
