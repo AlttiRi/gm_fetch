@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.8-2022.05.23-dev
+// @version      0.2.9-2022.05.23-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -235,13 +235,14 @@ function getGM_fetch() {
         _headers.append("referer", referrer);
 
         let abortCallback;
+        let finished = false;
         function handleAbort(gmAbort) {
             if (!signal) {
                 return;
             }
             if (signal.aborted) {
                 gmAbort();
-                setTimeout(gmAbort, 0); // VM fix.
+                const id = setInterval(() => finished ? clearInterval(id) : gmAbort(), 1); // VM fix.
                 return;
             }
             abortCallback = () => gmAbort();
@@ -249,6 +250,7 @@ function getGM_fetch() {
         }
         function removeAbortListener() {
             signal?.removeEventListener("abort", abortCallback);
+            finished = true;
         }
 
         if (!isStreamSupported || !useStream) {
@@ -274,6 +276,7 @@ function getGM_fetch() {
                         onerror: reject,
                         onabort: () => {
                             console.log("onabort");
+                            removeAbortListener();
                             reject(new DOMException("The user aborted a request.", "AbortError"));
                         },
                         data: body,
@@ -312,6 +315,7 @@ function getGM_fetch() {
                         onerror: reject,
                         onabort: () => {
                             console.log("onabort");
+                            removeAbortListener();
                             reject(new DOMException("The user aborted a request.", "AbortError"));
                         },
                         data: body,
