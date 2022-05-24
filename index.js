@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.12-2022.05.23-dev
+// @version      0.2.13-2022.05.23-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -280,7 +280,7 @@ function getGM_fetch() {
             };
         }
 
-        if (!isStreamSupported || !useStream) {
+        function nonStreamFetch() {
             const _onprogress = onprogress;
             let onProgressProps = {}; // Will be inited on HEADERS_RECEIVED. It used to have the same behaviour in TM and VM.
             return new Promise((resolve, _reject) => {
@@ -318,7 +318,9 @@ function getGM_fetch() {
                     resolve(response);
                 }
             });
-        } else {
+        }
+
+        function streamFetch() {
             return new Promise((resolve, reject) => {
                 const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
                 const {onabort, onerror} = getOnCancel(reject);
@@ -350,7 +352,13 @@ function getGM_fetch() {
                     }
                     resolve(response);
                 }
-            });
+            }); 
+        }
+        
+        if (!isStreamSupported || !useStream) {
+            return nonStreamFetch();
+        } else {
+            return streamFetch();
         }
     }
 
