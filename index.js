@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.4-2022.05.23-dev
+// @version      0.2.5-2022.05.23-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -153,13 +153,18 @@ function getGM_fetch() {
     }
 
     const identityContentEncodings = new Set([null, "identity", "no encoding"]);
-    function responseProgressProxy(response, onProgress) {
-        const lengthComputable = identityContentEncodings.has(response.headers.get("Content-Encoding"));
+    function getOnProgressProps(headers) {
+        const lengthComputable = identityContentEncodings.has(headers.get("Content-Encoding"));
         const compressed = !lengthComputable;
-        const contentLength = parseInt(response.headers.get("Content-Length"));
+        const contentLength = parseInt(headers.get("Content-Length"));
         // Original XHR behaviour; in TM it equals to `contentLength`, or `-1` if `contentLength` is `null`.
         const total = lengthComputable ? (isNaN(contentLength) ? 0 : contentLength) : 0;
 
+        return {total, lengthComputable, compressed, contentLength};
+    }
+
+    function responseProgressProxy(response, onProgress) {
+        const onProgressProps = getOnProgressProps(response.headers);
         let loaded = 0;
         const reader = response.body.getReader();
         const readableStream = new ReadableStream({
@@ -171,10 +176,7 @@ function getGM_fetch() {
                     }
                     loaded += value.length;
                     try {
-                        onProgress({
-                            loaded, total, lengthComputable,
-                            contentLength, compressed
-                        });
+                        onProgress({loaded, ...onProgressProps});
                     } catch (e) {
                         console.error("[onProgress]:", e);
                     }
@@ -225,6 +227,9 @@ function getGM_fetch() {
         _headers.append("referer", referrer);
 
         if (!isStreamSupported || !useStream) {
+            const _onprogress = onprogress;
+            let onProgressProps = {}; // Will be inited on HEADERS_RECEIVED. It used to have the same behaviour in TM and VM.
+
             return new Promise((resolve, _reject) => {
                 const blobPromise = new Promise((resolve, reject) => {
                     GM_xmlhttpRequest({
@@ -236,7 +241,9 @@ function getGM_fetch() {
                         onload: (response) => resolve(response.response),
                         onerror: reject,
                         onreadystatechange: onHeadersReceived,
-                        onprogress, // todo
+                        onprogress: ({loaded/*, total, lengthComputable*/}) => {
+                            _onprogress({loaded, ...onProgressProps});
+                        },
                         data: body,
                     });
                 });
@@ -247,6 +254,7 @@ function getGM_fetch() {
                     } = gmResponse;
                     if (readyState === HEADERS_RECEIVED) {
                         const headers = parseHeaders(responseHeaders);
+                        onProgressProps = getOnProgressProps(headers);
                         const newResp = new ResponseLike(blobPromise, {
                             headers, status, statusText, url, finalUrl
                         });
