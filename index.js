@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.15-2022.05.25-dev
+// @version      0.2.16-2022.05.25-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -50,12 +50,15 @@ const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 
     const {status, statusText} = response;
     const lastModified = response.headers.get("last-modified");
-    console.log({status, statusText, lastModified});
+    const contentType = response.headers.get("content-type");
+    console.log({status, statusText, lastModified, contentType});
 
     const blob = await response.blob();
     console.log(blob);
 
-    downloadBlob(blob, "[example.com] (GM_Fetch Demo).html", url);
+    const ext = contentType.match(/(?<=\/)[^\/\s;]+/)?.[0] || "";
+    const hostname = new URL(url).hostname;
+    downloadBlob(blob, `[${hostname}] (GM_fetch demo)${ext ? "." + ext : ""}`, url);
 })();
 
 // ------------------------------------------------------------------------------------
@@ -81,13 +84,13 @@ function getGM_fetch() {
 
     function getWebPageFetch() {
         let fetch = globalThis.fetch;
-        // [VM/GM + Firefox ~90+ + Enabled "Strict Tracking Protection"] may require this fix.
+        // [VM/GM + Firefox ~90+ + Enabled "Strict Tracking Protection"] requires this fix.
         function fixFirefoxFetch() { // todo: test it more.
             const fixRequired = globalThis.wrappedJSObject && typeof globalThis.wrappedJSObject.fetch === "function";
-            if (!fixRequired) {
+            if (!fixRequired) { // It just checks is it a UserScript, or not. // Is possible to check is it Firefox?
                 return;
             }
-            function fixedFetch(resource, init = {}) {
+            function fixedFetch(resource, init = {}) { // todo if `Request` is passed
                 if (init.headers instanceof Headers) {
                     // Since `Headers` are not allowed for structured cloning.
                     init.headers = Object.fromEntries(init.headers.entries());
