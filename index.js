@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.13-2022.05.24-dev
+// @version      0.2.14-2022.05.24-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -158,14 +158,18 @@ function getGM_fetch() {
     const identityContentEncodings = new Set([null, "identity", "no encoding"]);
     function getOnProgressProps(response) {
         const {headers, status, statusText, url, redirected, ok} = response;
-        const lengthComputable = identityContentEncodings.has(headers.get("Content-Encoding"));
-        const compressed = !lengthComputable;
-        const contentLength = parseInt(headers.get("Content-Length"));
-        // Original XHR behaviour; in TM it equals to `contentLength`, or `-1` if `contentLength` is `null`.
-        const total = lengthComputable ? (isNaN(contentLength) ? 0 : contentLength) : 0;
+        const isIdentity = identityContentEncodings.has(headers.get("Content-Encoding"));
+        const compressed = !isIdentity;
+        const _contentLength = parseInt(headers.get("Content-Length")); // `get()` returns `null` if no header present
+        const contentLength = isNaN(_contentLength) ? null : _contentLength;
+        const lengthComputable = isIdentity && _contentLength !== null;
+
+        // Original XHR behaviour; in TM it equals to `contentLength`, or `-1` if `contentLength` is `null` (add `0`?).
+        const total = lengthComputable ? contentLength : 0;
+        const gmTotal = contentLength > 0 ? contentLength : -1; // Like `total` is in TM and GM.
 
         return {
-            total, lengthComputable,
+            gmTotal, total, lengthComputable,
             compressed, contentLength,
             headers, status, statusText, url, redirected, ok
         };
