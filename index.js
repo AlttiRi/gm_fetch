@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.14-2022.05.24-dev
+// @version      0.2.15-2022.05.25-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
+// @grant        GM.xmlHttpRequest
 // @connect      ipv4.download.thinkbroadband.com
 // @connect      giant.gfycat.com
 // @connect      example.com
@@ -74,18 +75,29 @@ function downloadBlob(blob, name, url = "") {
 // ------------------------------------------------------------------------------------
 
 function getGM_fetch() {
-    const isStreamSupported = GM_xmlhttpRequest?.RESPONSE_TYPE_STREAM;
+    const GM_XHR = (typeof GM_xmlhttpRequest === "function") ? GM_xmlhttpRequest : (GM?.xmlHttpRequest);
+    const isStreamSupported = GM_XHR?.RESPONSE_TYPE_STREAM;
     const fetch = getWebPageFetch();
 
     function getWebPageFetch() {
-        // --- [VM/GM + Firefox ~90+ + Enabled "Strict Tracking Protection"] fix --- //
-        return (globalThis.wrappedJSObject && typeof globalThis.wrappedJSObject.fetch === "function") ? function(resource, init = {}) {
-            if (init.headers instanceof Headers) {
-                // Since `Headers` are not allowed for structured cloning.
-                init.headers = Object.fromEntries(init.headers.entries());
+        let fetch = globalThis.fetch;
+        // [VM/GM + Firefox ~90+ + Enabled "Strict Tracking Protection"] may require this fix.
+        function fixFirefoxFetch() { // todo: test it more.
+            const fixRequired = globalThis.wrappedJSObject && typeof globalThis.wrappedJSObject.fetch === "function";
+            if (!fixRequired) {
+                return;
             }
-            return globalThis.wrappedJSObject.fetch(cloneInto(resource, document), cloneInto(init, document));
-        } : globalThis.fetch;
+            function fixedFetch(resource, init = {}) {
+                if (init.headers instanceof Headers) {
+                    // Since `Headers` are not allowed for structured cloning.
+                    init.headers = Object.fromEntries(init.headers.entries());
+                }
+                return globalThis.wrappedJSObject.fetch(cloneInto(resource, document), cloneInto(init, document));
+            }
+            fetch = fixedFetch;
+        }
+        fixFirefoxFetch();
+        return fetch;
     }
 
     /** The default Response always has {type: "default", redirected: false, url: ""} */
@@ -216,26 +228,42 @@ function getGM_fetch() {
      const blob = await response.blob();
      * @return {Promise<Response>} */
     async function GM_fetch(url, fetchInit = {}) {
-        const defaultFetchInit = {method: "get", headers: {}};
-        const defaultExtra = {useStream: true, webContext: false, onprogress: null};
-        const opts = {
-            ...defaultFetchInit,
-            ...fetchInit,
-            extra: {
-                ...defaultExtra,
-                ...fetchInit.extra
-            }
-        };
-        if (opts.extra.webContext) {
-            delete opts.extra;
-            return fetch(url, opts);
+        if (fetchInit.extra?.webContext) {
+            delete fetchInit.extra;
+            return fetch(url, fetchInit);
         }
 
-        const {headers, method, body, referrer, signal, extra: {useStream, onprogress}} = opts;
-        delete opts.extra.webContext;
-        delete opts.extra.useStream;
-        const _headers = new HeadersLike(headers);
-        _headers.append("referer", referrer);
+        function handleParams(fetchInit) {
+            const defaultFetchInit = {method: "GET", headers: {}};
+            const defaultExtra = {useStream: true, onprogress: null};
+            const opts = {
+                ...defaultFetchInit,
+                ...fetchInit,
+                extra: {
+                    ...defaultExtra,
+                    ...fetchInit.extra
+                }
+            };
+
+            const {headers, method, body, referrer, signal, extra: {useStream, onprogress}} = opts;
+            delete opts.extra.useStream;
+            delete opts.extra.onprogress;
+
+            const _headers = new HeadersLike(headers);
+            if (referrer && !_headers.has("referer")) {
+                _headers.append("referer", referrer); // todo: handle referrer
+            }
+
+            return {
+                method, headers: _headers, body, signal,
+                useStream, onprogress, extra: opts.extra
+            };
+        }
+
+        const {
+            method, headers, body, signal,
+            useStream, onprogress, extra
+        } = handleParams(fetchInit);
 
         let abortCallback;
         let done = false;
@@ -265,7 +293,8 @@ function getGM_fetch() {
                     onHeadersReceived(gmResponse);
                 }
                 // It does not trigger on `abort` and `error`, while native XHR does. (In both TM and VM)
-                // else if (readyState === DONE) { // Only on `onload`. Is a bug? // Also it fires multiple times in non the latest VM beta.
+                // Fires only on `onload`. Is a bug? // Also it fires (`readyState === DONE`) multiple times in non the latest VM beta.
+                // else if (readyState === DONE) {
                 //     onDone();
                 // }
             }
@@ -291,11 +320,11 @@ function getGM_fetch() {
                 const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
                 const blobPromise = new Promise((resolve, reject) => {
                     const {onabort, onerror} = getOnCancel(reject);
-                    const {abort} = GM_xmlhttpRequest({
-                        ...opts.extra,
+                    const {abort} = GM_XHR({
+                        ...extra,
                         url,
                         method,
-                        headers: _headers,
+                        headers,
                         responseType: "blob",
                         onload(gmResponse) {
                             onDone();
@@ -328,11 +357,11 @@ function getGM_fetch() {
             return new Promise((resolve, reject) => {
                 const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
                 const {onabort, onerror} = getOnCancel(reject);
-                const {abort} = GM_xmlhttpRequest({
-                    ...opts.extra,
+                const {abort} = GM_XHR({
+                    ...extra,
                     url,
                     method,
-                    headers: _headers,
+                    headers,
                     responseType: "stream",
                     /* fetch: true, */ // Not required, since it already has `responseType: "stream"`.
                     onload(gmResponse) {
@@ -356,9 +385,9 @@ function getGM_fetch() {
                     }
                     resolve(response);
                 }
-            }); 
+            });
         }
-        
+
         if (!isStreamSupported || !useStream) {
             return nonStreamFetch();
         } else {
