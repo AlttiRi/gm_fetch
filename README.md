@@ -2,6 +2,8 @@
 
 `GM_fetch` — a wrapper for `GM_xmlhttpRequest` of TamperMonkey and ViolentMonkey UserScript extensions.
 
+`GM_fetch` is compatible with [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API).
+
 ---
 
 Currently it is in dev mode.
