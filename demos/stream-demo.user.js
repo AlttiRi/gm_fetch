@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         GM_fetch stream demo
+// @name         GM_fetch stream demo (05.26)
 // @description  GM_fetch stream demo. Just open https://example.com/gm_fetch-stream-demo page to execute this demo.
-// @version      0.0.1
+// @version      0.0.1-2022.05.26
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-stream-demo
 // @grant        GM_xmlhttpRequest
