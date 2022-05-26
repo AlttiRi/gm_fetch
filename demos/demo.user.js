@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         GM_fetch demo
+// @name         GM_fetch demo (05.26)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script. Just open https://example.com/gm_fetch-demo page to execute this demo.
-// @version      0.0.2
+// @version      0.0.2-2022.05.26
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
