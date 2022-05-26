@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch Demo (2022.05.22)
 // @description  GM_fetch (a wrapper for GM_xmlhttpRequest) demonstration script
-// @version      0.2.16-2022.05.25-dev
+// @version      0.3.0-2022.05.26-dev
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-demo
 // @grant        GM_xmlhttpRequest
@@ -32,7 +32,70 @@ const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 // ------------------------------------------------------------------------------------
 
 // Just open https://example.com/gm_fetch-demo page to execute this demo
-(async function() {
+//void demo1();
+//void demo2(GM_fetch);
+//void demo3(GM_fetch);
+//void demo4(GM_fetch);
+void demo5(GM_fetch);
+
+async function demo2(fetch) {
+    let response = await fetch("./");
+    let rs = response.body;
+    let reader = rs.getReader();
+    console.log({response, rs, reader});
+    console.log(response.bodyUsed, rs.locked);
+    console.log(await reader.read());
+    console.log(response.bodyUsed, rs.locked);
+    console.log(await reader.read());
+    console.log(response.bodyUsed, rs.locked);
+    console.log(await response.blob());
+    console.log(response.bodyUsed, rs.locked);
+}
+async function demo3(fetch) {
+    let response = await fetch("./");
+    let rs = response.body;
+    let reader = rs.getReader();
+    console.log({response, rs, reader});
+    console.log(response.bodyUsed, rs.locked);
+    //console.log(await reader.read());
+    console.log(response.bodyUsed, rs.locked);
+    //console.log(await reader.read());
+    console.log(response.bodyUsed, rs.locked);
+    console.log(await response.blob());
+    console.log(response.bodyUsed, rs.locked);
+}
+async function demo4(fetch) {
+    let response = await fetch("./");
+    let rs = response.body;
+    let reader = rs.getReader();
+    reader.releaseLock();
+    console.log({response, rs, reader});
+    console.log(response.bodyUsed, rs.locked);
+    console.log(await reader.read());
+    console.log(response.bodyUsed, rs.locked);
+    console.log(await reader.read());
+    console.log(response.bodyUsed, rs.locked);
+    console.log(await response.blob());
+    console.log(response.bodyUsed, rs.locked);
+}
+async function demo5(fetch) {
+    let response = await fetch("./");
+    let rs = response.body;
+    let reader = rs.getReader();
+    reader.releaseLock();
+    reader = rs.getReader();
+    console.log({response, rs, reader});
+    console.log(response.bodyUsed, rs.locked);
+    console.log(await reader.read());
+    console.log(response.bodyUsed, rs.locked);
+    console.log(await reader.read());
+    console.log(response.bodyUsed, rs.locked);
+    console.log(await response.blob());
+    console.log(response.bodyUsed, rs.locked);
+}
+
+
+async function demo1() {
     console.log("GM_fetch:", url);
     let controller = new AbortController();
     //controller.abort();
@@ -59,7 +122,7 @@ const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
     const ext = contentType.match(/(?<=\/)[^\/\s;]+/)?.[0] || "";
     const hostname = new URL(url).hostname;
     downloadBlob(blob, `[${hostname}] (GM_fetch demo)${ext ? "." + ext : ""}`, url);
-})();
+};
 
 // ------------------------------------------------------------------------------------
 // Util
@@ -150,6 +213,54 @@ function getGM_fetch() {
         }
         return headers;
     }
+
+    class ReaderLike {
+        constructor(blobPromise, body) {
+            /** @type {Promise<Blob>} */
+            this._blobPromise = blobPromise;
+            /** @type {ReadableStreamDefaultReader} */
+            this._reader = null;
+            /** @type {ReadableStreamLike} */
+            this._body = body;
+            this._released = false;
+        }
+        /** @return {Promise<{value: Uint8Array, done: boolean}>} */
+        read() {
+            if (this._released) {
+                throw new TypeError("This readable stream reader has been released and cannot be used to read from its previous owner stream");
+            }
+            this._body._used = true;
+            if (this._reader === null) {
+                return new Promise(async (resolve) => {
+                    const blob = await this._blobPromise;
+                    const response = new Response(blob);
+                    this._reader = response.body.getReader();
+                    const result = await this._reader.read();
+                    resolve(result);
+                });
+            }
+            return this._reader.read();
+        }
+        releaseLock() {
+            this._body.locked = false;
+            this._released = true;
+        }
+    }
+    class ReadableStreamLike { // BodyLike
+        constructor(blobPromise) {
+            this.locked = false;
+            this._used = false;
+            this._blobPromise = blobPromise;
+        }
+        getReader() {
+            if (this.locked) {
+                throw new TypeError("ReadableStreamReader constructor can only accept readable streams that are not yet locked to a reader");
+            }
+            this._reader = new ReaderLike(this._blobPromise, this);
+            this.locked = true;
+            return this._reader;
+        }
+    }
     class ResponseLike {
         constructor(blobPromise, {headers, status, statusText, url, finalUrl}) {
             /** @type {Promise<Blob>} */
@@ -161,13 +272,26 @@ function getGM_fetch() {
             this.redirected = url !== finalUrl;
             this.type = "basic";
             this.ok = status.toString().startsWith("2");
-            this.bodyUsed = false;
-            blobPromise.then(() => this.bodyUsed = true);
+            this._bodyUsed = false;
+            this.body = new ReadableStreamLike(blobPromise);
         }
-        blob() {        return this._blobPromise; }
-        arrayBuffer() { return this._blobPromise.then(blob => blob.arrayBuffer()); }
-        text() {        return this._blobPromise.then(blob => blob.text()); }
-        json() {        return this._blobPromise.then(blob => blob.text()).then(text => JSON.parse(text)); }
+        get bodyUsed() {
+            return this._bodyUsed || this.body._used;
+        }
+        blob() {
+            if (this.bodyUsed) {
+                throw new TypeError("body stream already read");
+            }
+            if (this.body.locked) {
+                throw new TypeError("body stream is locked");
+            }
+            this._bodyUsed = true;
+            this.body.locked = true;
+            return this._blobPromise;
+        }
+        arrayBuffer() { return this.blob().then(blob => blob.arrayBuffer()); }
+        text() {        return this.blob().then(blob => blob.text()); }
+        json() {        return this.text().then(text => JSON.parse(text)); }
     }
 
     const identityContentEncodings = new Set([null, "identity", "no encoding"]);
