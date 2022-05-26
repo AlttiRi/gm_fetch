@@ -7,6 +7,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM.xmlHttpRequest
 // @connect      example.com
+// @require      https://alttiri.github.io/gm_fetch/index.js
 // ==/UserScript==
 
 const GM_fetch = getGM_fetch();
