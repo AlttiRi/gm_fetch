@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch stream demo (05.26)
 // @description  GM_fetch stream demo. Just open https://example.com/gm_fetch-stream-demo page to execute this demo.
-// @version      0.0.1-2022.05.26
+// @version      0.0.2-2022.05.26
 // @namespace    gh.alttiri
 // @match        https://example.com/gm_fetch-stream-demo
 // @grant        GM_xmlhttpRequest
@@ -17,58 +17,69 @@ const GM_fetch = getGM_fetch();
 //void demo4(GM_fetch);
 void demo5(GM_fetch);
 
-async function demo2(fetch) {
+async function getProps(fetch) {
+    console.log("---");
     let response = await fetch("./");
     let rs = response.body;
     let reader = rs.getReader();
     console.log({response, rs, reader});
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
+    console.log("---");
+
+    return {response, rs, reader};
+}
+function logLockProps({response, rs}) {
+  console.log({bodyUsed: response.bodyUsed, locked: rs.locked});
+}
+
+async function demo2(fetch) {
+    let {response, rs, reader} = await getProps(fetch);
+
     console.log(await reader.read());
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
+
     console.log(await reader.read());
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
+
     console.log(await response.blob());
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
 }
 async function demo3(fetch) {
-    let response = await fetch("./");
-    let rs = response.body;
-    let reader = rs.getReader();
-    console.log({response, rs, reader});
-    console.log(response.bodyUsed, rs.locked);
-    //console.log(await reader.read());
-    console.log(response.bodyUsed, rs.locked);
-    //console.log(await reader.read());
-    console.log(response.bodyUsed, rs.locked);
+    let {response, rs, reader} = await getProps(fetch);
+  
     console.log(await response.blob());
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
 }
 async function demo4(fetch) {
-    let response = await fetch("./");
-    let rs = response.body;
-    let reader = rs.getReader();
+    let {response, rs, reader} = await getProps(fetch);
+
     reader.releaseLock();
     console.log({response, rs, reader});
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
+
     console.log(await reader.read());
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
+
     console.log(await reader.read());
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
+
     console.log(await response.blob());
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
 }
 async function demo5(fetch) {
-    let response = await fetch("./");
-    let rs = response.body;
-    let reader = rs.getReader();
+    let {response, rs, reader} = await getProps(fetch);
+  
     reader.releaseLock();
     reader = rs.getReader();
     console.log({response, rs, reader});
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
+
     console.log(await reader.read());
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
+
     console.log(await reader.read());
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
+
     console.log(await response.blob());
-    console.log(response.bodyUsed, rs.locked);
+    logLockProps({response, rs});
 }
