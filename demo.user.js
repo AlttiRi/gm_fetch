@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch stream demo (05.26)
 // @description  GM_fetch stream demo. Just open https://example.com/gm_fetch-stream-demo page to execute this demo.
-// @version      0.1.3-2022.05.31
+// @version      0.1.4-2022.05.31
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -101,7 +101,7 @@ document.querySelector("#demo-3").addEventListener("click", run(demo3));
 document.querySelector("#demo-4").addEventListener("click", run(demo4));
 document.querySelector("#demo-5").addEventListener("click", run(demo5));
 document.querySelector("#demo-6").addEventListener("click", run(demo6));
-
+const {demoX1, demoX2, demoX3, demoX4} = getDemos();
 document.querySelector("#demo-X1").addEventListener("click", run(demoX1));
 document.querySelector("#demo-X2").addEventListener("click", run(demoX2));
 document.querySelector("#demo-X3").addEventListener("click", run(demoX3));
@@ -205,68 +205,73 @@ function getStreamDemos() {
         demo1, demo2, demo3, demo4, demo5, demo6,
     };
 }
+function getDemos() {
+    async function demoX1() {
+        console.log("fetching:", url);
+        const response = await selectedFetch(url, {
+            extra: {
+                useStream,
+                onprogress: props => console.log(props)
+            }
+        });
+        console.log("response", response);
 
-async function demoX1() {
-    console.log("fetching:", url);
-    const response = await selectedFetch(url, {
-        extra: {
-            useStream,
-            onprogress: props => console.log(props)
-        }
-    });
-    console.log("response", response);
+        const {status, statusText} = response;
+        const lastModified = response.headers.get("last-modified");
+        const contentType = response.headers.get("content-type");
+        console.log({status, statusText, lastModified, contentType});
 
-    const {status, statusText} = response;
-    const lastModified = response.headers.get("last-modified");
-    const contentType = response.headers.get("content-type");
-    console.log({status, statusText, lastModified, contentType});
+        const blob = await response.blob();
+        console.log("blob.size", blob.size);
 
-    const blob = await response.blob();
-    console.log("blob.size", blob.size);
+        const ext = contentType.match(/(?<=\/)[^\/\s;]+/)?.[0] || "";
+        const hostname = new URL(url).hostname;
+        downloadBlob(blob, `[${hostname}] (GM_fetch demo)${ext ? "." + ext : ""}`, url);
+    }
 
-    const ext = contentType.match(/(?<=\/)[^\/\s;]+/)?.[0] || "";
-    const hostname = new URL(url).hostname;
-    downloadBlob(blob, `[${hostname}] (GM_fetch demo)${ext ? "." + ext : ""}`, url);
-}
+    async function demoX2() {
+        console.log("fetching:", url);
+        const response = await selectedFetch(url, {
+            referrer: "https://example.net/xxx-ref",
+            headers: {
+                "xxx": "1"
+            },
+            extra: {
+                useStream: false
+            }
+        });
+        console.log("response", response);
+    }
 
-async function demoX2() {
-    console.log("fetching:", url);
-    const response = await selectedFetch(url, {
-        referrer: "https://example.net/xxx-ref",
-        headers: {
-            "xxx": "1"
-        },
-        extra: {
-            useStream: false
-        }
-    });
-    console.log("response", response);
-}
+    async function demoX3() {
+        console.log("fetching:", url);
+        const response = await selectedFetch(url, {
+            method: "post",
+            body: new Blob(["xxx"]),
+            extra: {
+                useStream: false
+            }
+        });
+        console.log("response", response);
+    }
 
-async function demoX3() {
-    console.log("fetching:", url);
-    const response = await selectedFetch(url, {
-        method: "post",
-        body: new Blob(["xxx"]),
-        extra: {
-            useStream: false
-        }
-    });
-    console.log("response", response);
-}
-
-async function demoX4() {
-    console.log("fetching:", url);
-    let controller = new AbortController();
-    controller.abort();
-    const response = await selectedFetch(url, {
-        signal: controller.signal,
-        extra: {
-            useStream: false
-        }
-    });
-    console.log("response", response);
-    console.log(await response.blob());
+    async function demoX4() {
+        console.log("fetching:", url);
+        let controller = new AbortController();
+        controller.abort();
+        const response = await selectedFetch(url, {
+            signal: controller.signal,
+            extra: {
+                useStream: false
+            }
+        });
+        console.log("response", response);
+        console.log(await response.blob());
+    }
+    
+    return {
+        demoX1, demoX2, demoX3, demoX4
+    };
 }
 
 // ------------------------------------------------------------------------------------
