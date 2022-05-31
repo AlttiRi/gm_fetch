@@ -44,7 +44,7 @@ function getGM_fetch() {
     }
     class HeadersLike { // Note: the original `Headers` throws an error if `key` requires `.trim()`
         constructor(headers) {
-            headers && (Object.entries(headers)).forEach((key, value) => {
+            headers && (Object.entries(headers)).forEach(([key, value]) => {
                 this.append(key, value);
             });
         }
