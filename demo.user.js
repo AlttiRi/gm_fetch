@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch stream demo (05.26)
 // @description  GM_fetch stream demo. Just open https://example.com/gm_fetch-demo page to execute this demo.
-// @version      0.1.5-2022.05.31
+// @version      0.1.6-2022.05.31
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -16,19 +16,28 @@ function demo() {
     const GM_fetch = getGM_fetch();         // Just "import" it to use it
     const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 
-    let url;
+    const defaultUrl = "https://example.com/";
+    let url = defaultUrl;
     // url = "http://ipv4.download.thinkbroadband.com/10MB.zip?t=" + Date.now(); // 408 // error
     // url = "https://giant.gfycat.com/ShockedSecondaryFiddlercrab.mp4";         // 200 // 32 MB
-    // url = "https://example.com/xxx";                                          // 404
+    // url = "https://example.com/404";                                          // 404
     // url = "https://example.com/";    // 200
     // url = "https://google.com/";     // .redirected, .url
-    url = "http://192.168.1.33:8080/1.mp4";
+    // url = "http://192.168.1.33:8080/1.mp4";
 
     let html = `
 <div style="display: flex; justify-content: center; flex-direction: column;" id="demo">
     <style>#demo div {padding: 15px 0; margin: 0;} input[type="text"] {width: 90%;}</style>
     <div>
-        <span><label>URL: <input id="url-input" type="text" value="${url}"></label></span>
+        <span><label>URL: <input id="url-input" type="text" placeholder="${defaultUrl}" list="urls"></label></span>
+        <datalist id="urls">
+          <option value="http://192.168.1.33:8080/1.mp4"></option>
+          <option value="https://example.com/"></option>
+          <option value="https://example.com/404"></option>
+          <option value="https://google.com/"></option>
+          <option value="https://giant.gfycat.com/ShockedSecondaryFiddlercrab.mp4"></option>
+          <option value="http://ipv4.download.thinkbroadband.com/10MB.zip?t=${Date.now()}"></option>
+        </datalist>
     </div>
     <div>
         <div>
