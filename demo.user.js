@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         GM_fetch stream demo (05.26)
-// @description  GM_fetch stream demo. Just open https://example.com/gm_fetch-demo page to execute this demo.
-// @version      0.1.6-2022.05.31
+// @name         GM_fetch demo (05.26)
+// @description  GM_fetch demo. Just open https://example.com/gm_fetch-demo page to execute this demo.
+// @version      0.1.7-2022.05.31
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -16,7 +16,7 @@ function demo() {
     const GM_fetch = getGM_fetch();         // Just "import" it to use it
     const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 
-    const defaultUrl = "https://example.com/";
+    const defaultUrl = location.href;
     let url = defaultUrl;
     // url = "http://ipv4.download.thinkbroadband.com/10MB.zip?t=" + Date.now(); // 408 // error
     // url = "https://giant.gfycat.com/ShockedSecondaryFiddlercrab.mp4";         // 200 // 32 MB
