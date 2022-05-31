@@ -1,4 +1,4 @@
-/*! GM_fetch — v0.3.1-2022.05.31-dev — https://github.com/AlttiRi/gm_fetch */
+/*! GM_fetch — v0.3.1-2022.05.31-dev — MIT — https://github.com/AlttiRi/gm_fetch */
 
 function getGM_fetch() {
     const GM_XHR = (typeof GM_xmlhttpRequest === "function") ? GM_xmlhttpRequest : (GM?.xmlHttpRequest);
