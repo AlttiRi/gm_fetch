@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch stream demo (05.26)
 // @description  GM_fetch stream demo. Just open https://example.com/gm_fetch-stream-demo page to execute this demo.
-// @version      0.1.0-2022.05.31
+// @version      0.1.1-2022.05.31
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -24,7 +24,7 @@ const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 
 let url;
 // url = "http://ipv4.download.thinkbroadband.com/10MB.zip?t=" + Date.now(); // 408 // error
-// url = "https://giant.gfycat.com/ShockedSecondaryFiddlercrab.mp4";         // 200   // 32 MB
+// url = "https://giant.gfycat.com/ShockedSecondaryFiddlercrab.mp4";         // 200 // 32 MB
 // url = "https://example.com/xxx";                                          // 404
 // url = "https://example.com/";    // 200
 // url = "https://google.com/";     // .redirected, .url
@@ -47,12 +47,13 @@ let html = `
         </div>
         <div>
             <style>button {padding: 5px; margin: 5px;}</style>
-            <button id="demo-1">Demo 1</button>
-            <button id="demo-2">Demo 2</button>
-            <button id="demo-3">Demo 3</button>
-            <button id="demo-4">Demo 4</button>
-            <button id="demo-5">Demo 5</button>
-            <button id="demo-6">Demo 6</button>
+            Stream demos.<br>
+            <button id="demo-1" title="Should throw: 'TypeError: body stream already read'">Demo 1</button>
+            <button id="demo-2" title="Should throw: 'TypeError: body stream is locked'">Demo 2</button>
+            <button id="demo-3" title="Should throw: 'This readable stream reader has been released and cannot be used to read from its previous owner stream'">Demo 3</button>
+            <button id="demo-4" title="Should throw: 'TypeError: body stream already read'">Demo 4</button>
+            <button id="demo-5" title="Should log readed with \`reader.read()\` bytes lenght">Demo 5</button>
+            <button id="demo-6" title="Should log blob size">Demo 6</button>
         </div>
     </div>
 </div>
@@ -67,8 +68,7 @@ const run = func => {
             await func();
         } finally {
             btn.disabled = false;
-            btn.title = `Time: ${Date.now() - start} ms`;
-            console.log(btn.title);
+            console.log(`Time: ${Date.now() - start} ms`);
         }
     }
 }
@@ -87,6 +87,7 @@ document.querySelector("#fetch-type-radio-group").addEventListener("change", eve
 document.querySelector("#use-stream").addEventListener("change", event => {
     useStream = event.currentTarget.checked;
 });
+const {demo1, demo2, demo3, demo4, demo5, demo6} = getStreamDemos();
 document.querySelector("#demo-1").addEventListener("click", run(demo1));
 document.querySelector("#demo-2").addEventListener("click", run(demo2));
 document.querySelector("#demo-3").addEventListener("click", run(demo3));
@@ -94,96 +95,101 @@ document.querySelector("#demo-4").addEventListener("click", run(demo4));
 document.querySelector("#demo-5").addEventListener("click", run(demo5));
 document.querySelector("#demo-6").addEventListener("click", run(demo6));
 
+function getStreamDemos() {
+    async function getProps() {
+        console.log("---");
+        let response = await selectedFetch(url, {
+            extra: {
+                useStream
+            }
+        });
+        let rs = response.body;
+        let reader = rs.getReader();
+        console.log({response, rs, reader});
+        logLockProps({response, rs});
+        console.log("---");
 
-async function getProps() {
-    console.log("---");
-    let response = await selectedFetch(url, {
-        extra: {
-            useStream
-        }
-    });
-    let rs = response.body;
-    let reader = rs.getReader();
-    console.log({response, rs, reader});
-    logLockProps({response, rs});
-    console.log("---");
+        return {response, rs, reader};
+    }
+    function logLockProps({response, rs}) {
+        console.log({bodyUsed: response.bodyUsed, locked: rs.locked});
+    }
 
-    return {response, rs, reader};
-}
-function logLockProps({response, rs}) {
-    console.log({bodyUsed: response.bodyUsed, locked: rs.locked});
-}
+    async function demo1(fetch) {
+        let {response, rs, reader} = await getProps(fetch);
 
-async function demo1(fetch) {
-    let {response, rs, reader} = await getProps(fetch);
+        console.log(await reader.read());
+        logLockProps({response, rs});
 
-    console.log(await reader.read());
-    logLockProps({response, rs});
+        console.log(await reader.read());
+        logLockProps({response, rs});
 
-    console.log(await reader.read());
-    logLockProps({response, rs});
+        console.log(await response.blob());
+        logLockProps({response, rs});
+    }
+    async function demo2(fetch) {
+        let {response, rs, reader} = await getProps(fetch);
 
-    console.log(await response.blob());
-    logLockProps({response, rs});
-}
-async function demo2(fetch) {
-    let {response, rs, reader} = await getProps(fetch);
+        console.log(await response.blob());
+        logLockProps({response, rs});
+    }
+    async function demo3(fetch) {
+        let {response, rs, reader} = await getProps(fetch);
 
-    console.log(await response.blob());
-    logLockProps({response, rs});
-}
-async function demo3(fetch) {
-    let {response, rs, reader} = await getProps(fetch);
+        reader.releaseLock();
+        console.log({response, rs, reader});
+        logLockProps({response, rs});
 
-    reader.releaseLock();
-    console.log({response, rs, reader});
-    logLockProps({response, rs});
+        console.log(await reader.read());
+        logLockProps({response, rs});
 
-    console.log(await reader.read());
-    logLockProps({response, rs});
+        console.log(await reader.read());
+        logLockProps({response, rs});
 
-    console.log(await reader.read());
-    logLockProps({response, rs});
+        console.log(await response.blob());
+        logLockProps({response, rs});
+    }
+    async function demo4(fetch) {
+        let {response, rs, reader} = await getProps(fetch);
 
-    console.log(await response.blob());
-    logLockProps({response, rs});
-}
-async function demo4(fetch) {
-    let {response, rs, reader} = await getProps(fetch);
+        reader.releaseLock();
+        reader = rs.getReader();
+        console.log({response, rs, reader});
+        logLockProps({response, rs});
 
-    reader.releaseLock();
-    reader = rs.getReader();
-    console.log({response, rs, reader});
-    logLockProps({response, rs});
+        console.log(await reader.read());
+        logLockProps({response, rs});
 
-    console.log(await reader.read());
-    logLockProps({response, rs});
+        console.log(await reader.read());
+        logLockProps({response, rs});
 
-    console.log(await reader.read());
-    logLockProps({response, rs});
+        console.log(await response.blob());
+        logLockProps({response, rs});
+    }
+    async function demo5(fetch, useStream) {
+        let {response, rs, reader} = await getProps(fetch, useStream);
 
-    console.log(await response.blob());
-    logLockProps({response, rs});
-}
-async function demo5(fetch, useStream) {
-    let {response, rs, reader} = await getProps(fetch, useStream);
+        reader.releaseLock();
+        reader = rs.getReader();
 
-    reader.releaseLock();
-    reader = rs.getReader();
-
-    let value, done, total = 0;
-    do {
-        ({value, done} = await reader.read());
-        if (!done) {
-            total += value.length;
-            // console.log({total, value});
-        }
-    } while (!done);
-    console.log({total});
-}
-async function demo6(fetch, useStream) {
-    let {response, rs, reader} = await getProps(fetch, useStream);
-    reader.releaseLock();
-    const blob = await response.blob();
-    console.log(blob.size);
+        let value, done, total = 0;
+        do {
+            ({value, done} = await reader.read());
+            if (!done) {
+                total += value.length;
+                // console.log({total, value});
+            }
+        } while (!done);
+        console.log("reader.read() total:", total);
+    }
+    async function demo6(fetch, useStream) {
+        let {response, rs, reader} = await getProps(fetch, useStream);
+        reader.releaseLock();
+        const blob = await response.blob();
+        console.log("response.blob() size:", blob.size);
+    }
+    
+    return {
+        demo1, demo2, demo3, demo4, demo5, demo6,
+    };
 }
