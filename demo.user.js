@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch stream demo (05.26)
-// @description  GM_fetch stream demo. Just open https://example.com/gm_fetch-stream-demo page to execute this demo.
-// @version      0.1.4-2022.05.31
+// @description  GM_fetch stream demo. Just open https://example.com/gm_fetch-demo page to execute this demo.
+// @version      0.1.5-2022.05.31
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -12,7 +12,7 @@
 
 demo();
 
-function demo() {    
+function demo() {
     const GM_fetch = getGM_fetch();         // Just "import" it to use it
     const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 
@@ -28,7 +28,7 @@ function demo() {
 <div style="display: flex; justify-content: center; flex-direction: column;" id="demo">
     <style>#demo div {padding: 15px 0; margin: 0;} input[type="text"] {width: 90%;}</style>
     <div>
-        <span><label>URL: <input id="url-input" type="text" value="${url}"></label></span>    
+        <span><label>URL: <input id="url-input" type="text" value="${url}"></label></span>
     </div>
     <div>
         <div>
