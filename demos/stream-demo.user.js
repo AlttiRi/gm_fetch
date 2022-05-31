@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch stream demo (05.26)
 // @description  GM_fetch stream demo. Just open https://example.com/gm_fetch-stream-demo page to execute this demo.
-// @version      0.1.1-2022.05.31
+// @version      0.1.2-2022.05.31
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -45,15 +45,19 @@ let html = `
             <br>
             <label><input type="radio" name="fetch-type" value="fetch">fetch</label>
         </div>
+        <style>button {padding: 5px; margin: 5px;}</style>
         <div>
-            <style>button {padding: 5px; margin: 5px;}</style>
-            Stream demos.<br>
+            ReadableStream demos<br>
             <button id="demo-1" title="Should throw: 'TypeError: body stream already read'">Demo 1</button>
             <button id="demo-2" title="Should throw: 'TypeError: body stream is locked'">Demo 2</button>
             <button id="demo-3" title="Should throw: 'This readable stream reader has been released and cannot be used to read from its previous owner stream'">Demo 3</button>
             <button id="demo-4" title="Should throw: 'TypeError: body stream already read'">Demo 4</button>
             <button id="demo-5" title="Should log readed with \`reader.read()\` bytes lenght">Demo 5</button>
             <button id="demo-6" title="Should log blob size">Demo 6</button>
+        </div>
+        <div>
+            Demos<br>
+            <button id="demo-X1" title="Should dowbload a file from the URL">Demo 1</button>
         </div>
     </div>
 </div>
@@ -94,6 +98,8 @@ document.querySelector("#demo-3").addEventListener("click", run(demo3));
 document.querySelector("#demo-4").addEventListener("click", run(demo4));
 document.querySelector("#demo-5").addEventListener("click", run(demo5));
 document.querySelector("#demo-6").addEventListener("click", run(demo6));
+
+document.querySelector("#demo-X1").addEventListener("click", run(demoX));
 
 function getStreamDemos() {
     async function getProps() {
@@ -188,8 +194,49 @@ function getStreamDemos() {
         const blob = await response.blob();
         console.log("response.blob() size:", blob.size);
     }
-    
+
     return {
         demo1, demo2, demo3, demo4, demo5, demo6,
     };
+}
+
+async function demoX() {
+    console.log("GM_fetch:", url);
+    let controller = new AbortController();
+    //controller.abort();
+    const response = await GM_fetch(url, {
+        //method: "post",
+        //body: new Blob(["xxx"]),
+        referrer: "https://example.net",
+        signal: controller.signal,
+        extra: {
+            useStream: false,
+            onprogress: (props) => {console.log(props);}
+        }
+    });
+    console.log(response);
+
+    const {status, statusText} = response;
+    const lastModified = response.headers.get("last-modified");
+    const contentType = response.headers.get("content-type");
+    console.log({status, statusText, lastModified, contentType});
+
+    const blob = await response.blob();
+    console.log(blob);
+
+    const ext = contentType.match(/(?<=\/)[^\/\s;]+/)?.[0] || "";
+    const hostname = new URL(url).hostname;
+    downloadBlob(blob, `[${hostname}] (GM_fetch demo)${ext ? "." + ext : ""}`, url);
+}
+
+// ------------------------------------------------------------------------------------
+// Util
+// ------------------------------------------------------------------------------------
+function downloadBlob(blob, name, url = "") {
+    const anchor = document.createElement("a");
+    anchor.setAttribute("download", name || "");
+    const blobUrl = URL.createObjectURL(blob);
+    anchor.href = blobUrl + "#" + url;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
 }
