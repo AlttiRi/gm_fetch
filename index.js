@@ -1,4 +1,4 @@
-/*! GM_fetch — v0.3.2-2022.06.01-dev — https://github.com/AlttiRi/gm_fetch */
+/*! GM_fetch — v0.3.3-2022.06.01-dev — https://github.com/AlttiRi/gm_fetch */
 
 function getGM_fetch() {
     const GM_XHR = (typeof GM_xmlhttpRequest === "function") ? GM_xmlhttpRequest : (GM?.xmlHttpRequest);
@@ -40,13 +40,13 @@ function getGM_fetch() {
         }
         get redirected() { return this._redirected; }
         get url() { return this._url; }
-        get type() { return "basic"; }
+        get type() { return "basic"; }  // todo: if "cors"
         /** @returns {HeadersLike} */
         get headers() { return this._headers; }
     }
     class HeadersLike { // Note: the original `Headers` throws an error if `key` requires `.trim()`
         constructor(headers) {
-            headers && (Object.entries(headers)).forEach(([key, value]) => {
+            headers && Object.entries(headers).forEach(([key, value]) => {
                 this.append(key, value);
             });
         }
@@ -130,7 +130,7 @@ function getGM_fetch() {
             this.statusText = statusText;
             this.url = finalUrl;
             this.redirected = url !== finalUrl;
-            this.type = "basic"; // todo "cors"
+            this.type = "basic"; // todo: if "cors"
             this.ok = status.toString().startsWith("2");
             this._bodyUsed = false;
             this.body = new ReadableStreamLike(blobPromise);
