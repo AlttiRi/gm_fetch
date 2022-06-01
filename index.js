@@ -163,7 +163,7 @@ function getGM_fetch() {
         const contentLength = isNaN(_contentLength) ? null : _contentLength;
         const lengthComputable = isIdentity && _contentLength !== null;
 
-        // Original XHR behaviour; in TM it equals to `contentLength`, or `-1` if `contentLength` is `null` (add `0`?).
+        // Original XHR behaviour; in TM it equals to `contentLength`, or `-1` if `contentLength` is `null` (and `0`?).
         const total = lengthComputable ? contentLength : 0;
         const gmTotal = contentLength > 0 ? contentLength : -1; // Like `total` is in TM and GM.
 
