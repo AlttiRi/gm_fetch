@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch demo (05.26)
 // @description  GM_fetch demo. Just open https://example.com/gm_fetch-demo page to execute this demo.
-// @version      0.1.7-2022.05.31
+// @version      0.1.9-2022.06.01
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -16,8 +16,11 @@ function demo() {
     const GM_fetch = getGM_fetch();         // Just "import" it to use it
     const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
 
-    const defaultUrl = location.href;
+    const defaultUrl = new URL(location).searchParams.get("url") || location.href;
+    const onlyMainDemo = new URL(location).searchParams.get("only-main-demo");
+    const noDl = new URL(location).searchParams.get("no-dl");
     let url = defaultUrl;
+
     // url = "http://ipv4.download.thinkbroadband.com/10MB.zip?t=" + Date.now(); // 408 // error
     // url = "https://giant.gfycat.com/ShockedSecondaryFiddlercrab.mp4";         // 200 // 32 MB
     // url = "https://example.com/404";                                          // 404
@@ -49,7 +52,9 @@ function demo() {
             <label><input type="radio" name="fetch-type" value="fetch">fetch</label>
         </div>
         <style>button {padding: 5px; margin: 5px;}</style>
-        <div>
+        <style>.demos {display: ${onlyMainDemo ? "none;" : "auto;"}} .main-demo {display: ${onlyMainDemo ? "auto;" : "none;"}}
+        </style>
+        <div class="demos">
             ReadableStream demos<br>
             <button id="demo-1" title="Should throw: 'TypeError: body stream already read'">Demo 1</button>
             <button id="demo-2" title="Should throw: 'TypeError: body stream is locked'">Demo 2</button>
@@ -58,12 +63,15 @@ function demo() {
             <button id="demo-5" title="Should log readed with \`reader.read()\` bytes lenght">Demo 5</button>
             <button id="demo-6" title="Should log blob size">Demo 6</button>
         </div>
-        <div>
+        <div class="demos">
             Demos<br>
-            <button id="demo-X1" title="Should dowbload a file from the URL">Demo 1</button>
-            <button id="demo-X2" title="Should send request with additional headers">Demo 2</button>
-            <button id="demo-X3" title="Should send Blob with 'xxx' text">Demo 3</button>
-            <button id="demo-X4" title="Should abort fetch">Demo 4</button>
+            <button id="demo-X1" title="Should dowbload a file from the URL">1. Download Blob</button>
+            <button id="demo-X2" title="Should send request with additional headers">2. Headers</button>
+            <button id="demo-X3" title="Should send Blob with 'xxx' text">3. Send Blob</button>
+            <button id="demo-X4" title="Should abort fetch">4. Abort</button>
+        </div>
+        <div class="main-demo">
+            <button id="main-demo" title="Should dowbload a file from the URL">Download Blob</button>
         </div>
     </div>
 </div>
@@ -105,6 +113,7 @@ function demo() {
     document.querySelector("#demo-5").addEventListener("click", run(demo5));
     document.querySelector("#demo-6").addEventListener("click", run(demo6));
     const {demoX1, demoX2, demoX3, demoX4} = getDemos();
+    document.querySelector("#main-demo").addEventListener("click", run(demoX1));
     document.querySelector("#demo-X1").addEventListener("click", run(demoX1));
     document.querySelector("#demo-X2").addEventListener("click", run(demoX2));
     document.querySelector("#demo-X3").addEventListener("click", run(demoX3));
@@ -227,6 +236,9 @@ function demo() {
             const blob = await response.blob();
             console.log("blob.size", blob.size);
 
+            if (noDl) {
+                return;
+            }
             const ext = contentType.match(/(?<=\/)[^\/\s;]+/)?.[0] || "";
             const hostname = new URL(url).hostname;
             downloadBlob(blob, `[${hostname}] (GM_fetch demo)${ext ? "." + ext : ""}`, url);
