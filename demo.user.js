@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch demo (05.26)
 // @description  GM_fetch demo. Just open https://example.com/gm_fetch-demo page to execute this demo.
-// @version      0.1.9-2022.06.01
+// @version      0.1.10-2022.06.01
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -28,7 +28,7 @@ function demo() {
     // url = "https://google.com/";     // .redirected, .url
     // url = "http://192.168.1.33:8080/1.mp4";
 
-    let html = `
+    const html = `
 <div style="display: flex; justify-content: center; flex-direction: column;" id="demo">
     <style>#demo div {padding: 15px 0; margin: 0;} input[type="text"] {width: 90%;}</style>
     <div>
@@ -52,8 +52,7 @@ function demo() {
             <label><input type="radio" name="fetch-type" value="fetch">fetch</label>
         </div>
         <style>button {padding: 5px; margin: 5px;}</style>
-        <style>.demos {display: ${onlyMainDemo ? "none;" : "auto;"}} .main-demo {display: ${onlyMainDemo ? "auto;" : "none;"}}
-        </style>
+        <style>.demos {display: ${onlyMainDemo ? "none;" : "auto;"}} .main-demo {display: ${onlyMainDemo ? "auto;" : "none;"}}</style>
         <div class="demos">
             ReadableStream demos<br>
             <button id="demo-1" title="Should throw: 'TypeError: body stream already read'">Demo 1</button>
