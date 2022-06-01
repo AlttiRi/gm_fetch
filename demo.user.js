@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch demo (05.26)
 // @description  GM_fetch demo. Just open https://example.com/gm_fetch-demo page to execute this demo.
-// @version      0.1.11-2022.06.01
+// @version      0.1.12-2022.06.01
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -64,7 +64,7 @@ function demo() {
         </div>
         <div class="demos">
             Demos<br>
-            <button id="demo-X0" title="Should dowbload with StreamSaver">0. Download with StreamSaver</button>
+            <button id="demo-X0" title="Should dowbload with StreamSaver. May not work in Firefox.">0. Download with StreamSaver</button>
             <br>
             <button id="demo-X1" title="Should dowbload a file from the URL">1. Download Blob</button>
             <button id="demo-X2" title="Should send request with additional headers">2. Headers</button>
