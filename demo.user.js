@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch demo (05.26)
 // @description  GM_fetch demo. Just open https://example.com/gm_fetch-demo page to execute this demo.
-// @version      0.1.10-2022.06.01
+// @version      0.1.11-2022.06.01
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -64,6 +64,8 @@ function demo() {
         </div>
         <div class="demos">
             Demos<br>
+            <button id="demo-X0" title="Should dowbload with StreamSaver">0. Download with StreamSaver</button>
+            <br>
             <button id="demo-X1" title="Should dowbload a file from the URL">1. Download Blob</button>
             <button id="demo-X2" title="Should send request with additional headers">2. Headers</button>
             <button id="demo-X3" title="Should send Blob with 'xxx' text">3. Send Blob</button>
@@ -114,6 +116,7 @@ function demo() {
     const {demoX1, demoX2, demoX3, demoX4} = getDemos();
     document.querySelector("#main-demo").addEventListener("click", run(demoX1));
     document.querySelector("#demo-X1").addEventListener("click", run(demoX1));
+    document.querySelector("#demo-X0").addEventListener("click", run(() => demoX1(true)));
     document.querySelector("#demo-X2").addEventListener("click", run(demoX2));
     document.querySelector("#demo-X3").addEventListener("click", run(demoX3));
     document.querySelector("#demo-X4").addEventListener("click", run(demoX4));
@@ -217,7 +220,7 @@ function demo() {
         };
     }
     function getDemos() {
-        async function demoX1() {
+        async function demoX1(useStreamSaver = false) {
             console.log("fetching:", url);
             const response = await selectedFetch(url, {
                 extra: {
@@ -230,7 +233,16 @@ function demo() {
             const {status, statusText} = response;
             const lastModified = response.headers.get("last-modified");
             const contentType = response.headers.get("content-type");
-            console.log({status, statusText, lastModified, contentType});
+            const contentLength = response.headers.get("content-length");
+            console.log({status, statusText, lastModified, contentType, contentLength});
+
+            if (useStreamSaver) {
+                const ext = contentType.match(/(?<=\/)[^\/\s;]+/)?.[0] || "";
+                const hostname = new URL(url).hostname;
+                const filename = `[${hostname}] (GM_fetch demo)${ext ? "." + ext : ""}`;
+                await saveWithStreamSaver(response.body, filename, contentLength);
+                return;
+            }
 
             const blob = await response.blob();
             console.log("blob.size", blob.size);
@@ -288,6 +300,23 @@ function demo() {
         };
     }
 
+
+    let loaded = false;
+    async function saveWithStreamSaver(readableStream, filename, size) {
+        if (!loaded) {
+            await appendScript("https://jimmywarting.github.io/StreamSaver.js/StreamSaver.js")
+            loaded = true;
+        }
+        const fileStream = streamSaver.createWriteStream(filename, {size});
+        const writer = fileStream.getWriter();
+        const reader = readableStream.getReader();
+        const pump = () => reader.read()
+            .then(res => res.done
+                ? writer.close()
+                : writer.write(res.value).then(pump));
+        return pump();
+    }
+
     function downloadBlob(blob, name, url = "") {
         const anchor = document.createElement("a");
         anchor.setAttribute("download", name || "");
@@ -295,5 +324,19 @@ function demo() {
         anchor.href = blobUrl + "#" + url;
         anchor.click();
         setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+    }
+    function appendScript(src, integrity) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.onload = resolve;
+            script.onerror = event => reject({message: "Failed to load script", src, integrity, event});
+            script.src = src;
+            script.async = true;
+            if (integrity) {
+                script.integrity = integrity;
+                script.crossOrigin = "anonymous";
+            }
+            document.body.append(script);
+        });
     }
 }
