@@ -3,8 +3,8 @@
 // @description  GM_fetch demo + GM_fetch code. For dev purpose.
 // @version      0.1.14-2022.06.03
 // @namespace    gh.alttiri
-// @match        http*://example.com/gm_fetch-demo-dev
-// @match        https://twitter.com/gm_fetch-demo-dev
+// @match        http*://example.com/gm_fetch-demo-dev*
+// @match        https://twitter.com/gm_fetch-demo-dev*
 // @grant        GM_xmlhttpRequest
 // @grant        GM.xmlHttpRequest
 // ==/UserScript==
@@ -236,9 +236,10 @@ function demo() {
             const contentLength = response.headers.get("content-length");
             console.log({status, statusText, lastModified, contentType, contentLength});
 
+            const hostname = new URL(url, location).hostname;
+
             if (useStreamSaver) {
                 const ext = contentType.match(/(?<=\/)[^\/\s;]+/)?.[0] || "";
-                const hostname = new URL(url).hostname;
                 const filename = `[${hostname}] (GM_fetch demo)${ext ? "." + ext : ""}`;
                 await saveWithStreamSaver(response.body, filename, contentLength);
                 return;
@@ -251,7 +252,6 @@ function demo() {
                 return;
             }
             const ext = contentType.match(/(?<=\/)[^\/\s;]+/)?.[0] || "";
-            const hostname = new URL(url).hostname;
             downloadBlob(blob, `[${hostname}] (GM_fetch demo)${ext ? "." + ext : ""}`, url);
         }
 
@@ -577,6 +577,12 @@ function getGM_fetch() {
      const blob = await response.blob();
      * @return {Promise<Response>} */
     async function GM_fetch(url, fetchInit = {}) {
+        if (url?.url !== undefined) { // if `new Request("")`
+            ({url} = url);
+        } else {
+            url = new URL(url, location);
+        }
+
         if (fetchInit.extra?.webContext) {
             delete fetchInit.extra;
             return fetch(url, fetchInit);
@@ -649,16 +655,20 @@ function getGM_fetch() {
             }
         }
 
-        function getOnCancel(reject) {
+        function getOnDones({resolve, reject}) {
             return {
-                onerror(gmResponse) {
+                onload(gmResponse) {
+                    onDone();
+                    resolve?.(gmResponse.response); // Not required for `responseType: "stream"`
+                },
+                onerror() {
                     onDone();
                     reject(new TypeError("Failed to fetch"));
                 },
                 onabort() {
                     onDone();
                     reject(new DOMException("The user aborted a request.", "AbortError"));
-                },
+                }
             };
         }
 
@@ -666,30 +676,6 @@ function getGM_fetch() {
             const _onprogress = onprogress;
             let onProgressProps = {}; // Will be inited on HEADERS_RECEIVED. It used to have the same behaviour in TM and VM.
             return new Promise((resolve, _reject) => {
-                const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
-                const blobPromise = new Promise((resolve, reject) => {
-                    const {onabort, onerror} = getOnCancel(reject);
-                    const {abort} = GM_XHR({
-                        ...extra,
-                        url,
-                        method,
-                        headers,
-                        responseType: "blob",
-                        onload(gmResponse) { // todo getOnCancel
-                            onDone();
-                            resolve(gmResponse.response);
-                        },
-                        onreadystatechange,
-                        onprogress: _onprogress ? ({loaded/*, total, lengthComputable*/}) => {
-                            _onprogress({loaded, ...onProgressProps});
-                        } : undefined,
-                        onerror,
-                        onabort,
-                        data: body,
-                    });
-                    handleAbort(abort);
-                });
-                blobPromise.catch(_reject);
                 function onHeadersReceived(gmResponse) {
                     const {responseHeaders, status, statusText, finalUrl} = gmResponse;
                     const headers = parseHeaders(responseHeaders);
@@ -699,13 +685,46 @@ function getGM_fetch() {
                     onProgressProps = getOnProgressProps(response);
                     resolve(response);
                 }
+                const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
+                const blobPromise = new Promise((resolve, reject) => {
+                    const {onload, onabort, onerror} = getOnDones({resolve, reject});
+                    const {abort} = GM_XHR({
+                        ...extra,
+                        url,
+                        method,
+                        headers,
+                        responseType: "blob",
+                        onreadystatechange,
+                        onprogress: _onprogress ? ({loaded/*, total, lengthComputable*/}) => {
+                            _onprogress({loaded, ...onProgressProps});
+                        } : undefined,
+                        onload,
+                        onerror,
+                        onabort,
+                        data: body,
+                    });
+                    handleAbort(abort);
+                });
+                blobPromise.catch(_reject);
             });
         }
 
         function streamFetch() {
             return new Promise((resolve, reject) => {
+                function onHeadersReceived(gmResponse) {
+                    const {
+                        responseHeaders, status, statusText, finalUrl, response: readableStream
+                    } = gmResponse;
+                    const headers = parseHeaders(responseHeaders);
+                    const redirected = url !== finalUrl;
+                    let response = new ResponseEx(readableStream, {headers, status, statusText, url: finalUrl, redirected});
+                    if (onprogress) {
+                        response = responseProgressProxy(response, onprogress);
+                    }
+                    resolve(response);
+                }
                 const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
-                const {onabort, onerror} = getOnCancel(reject);
+                const {onload, onabort, onerror} = getOnDones({reject});
                 const {abort} = GM_XHR({
                     ...extra,
                     url,
@@ -713,27 +732,13 @@ function getGM_fetch() {
                     headers,
                     responseType: "stream",
                     /* fetch: true, */ // Not required, since it already has `responseType: "stream"`.
-                    onload(gmResponse) {
-                        onDone();
-                    },
                     onreadystatechange,
+                    onload,
                     onerror,
                     onabort,
                     data: body,
                 });
                 handleAbort(abort);
-                function onHeadersReceived(gmResponse) {
-                    const {
-                        responseHeaders, status, statusText, finalUrl, response: readableStream
-                    } = gmResponse;
-                    const headers = parseHeaders(responseHeaders);
-                    const redirected = url !== finalUrl;
-                    let response = new ResponseEx(readableStream, {headers, status, statusText, url, redirected});
-                    if (onprogress) {
-                        response = responseProgressProxy(response, onprogress);
-                    }
-                    resolve(response);
-                }
             });
         }
 
@@ -746,7 +751,7 @@ function getGM_fetch() {
 
     GM_fetch.isStreamSupported = isStreamSupported;
     GM_fetch.webContextFetch = fetch;
-    GM_fetch.firefoxFixedFetch  = firefoxFixedFetch ;
+    GM_fetch.firefoxFixedFetch = firefoxFixedFetch;
 
     return GM_fetch;
 }
