@@ -6,8 +6,7 @@
 
 ---
 
-Currently it is in dev mode.
-
+**Currently it is in dev mode.**
 The more detail description will be later.
 
 ---
