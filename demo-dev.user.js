@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         GM_fetch dev demo (06.03)
-// @description  GM_fetch dev demo. Just open https://example.com/gm_fetch-demo-dev page to execute this demo.
+// @description  GM_fetch demo + GM_fetch code. For dev purpose.
 // @version      0.1.14-2022.06.03
 // @namespace    gh.alttiri
 // @match        http*://example.com/gm_fetch-demo-dev
