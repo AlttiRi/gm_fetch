@@ -362,7 +362,7 @@ function getGM_fetch() {
 
     function getWebPageFetch() { // todo wrapper (onprogress)
         let fetch = globalThis.fetch;
-        // [VM/GM/FM + Firefox with "Enhanced Tracking Protection" set to "Strict" (Or "Custom" with enabled "Fingerprinters" option) 
+        // [VM/GM/FM + Firefox with "Enhanced Tracking Protection" set to "Strict" (Or "Custom" with enabled "Fingerprinters" option)
         // on sites with CSP (like Twitter)] requires this fix.
         // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Sharing_objects_with_page_scripts
         function fixFirefoxFetchOnPageWithCSP() {
@@ -377,7 +377,8 @@ function getGM_fetch() {
                     init.headers = Object.fromEntries(init.headers.entries());
                 }
                 delete init.extra; // Not supported currently // todo
-                return wrappedJSObject.fetch(cloneInto(resource, document), cloneInto(init, document/*, {cloneFunctions: true}*/));
+                delete init.signal; // Can't be structured cloned // todo?
+                return wrappedJSObject.fetch(cloneInto(resource, document), cloneInto(init, document, /*{cloneFunctions: true}*/));
             }
             fetch = fixedFetch;
             firefoxFixedFetch = true;
