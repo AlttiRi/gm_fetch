@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         GM_fetch dev demo (06.03)
 // @description  GM_fetch dev demo. Just open https://example.com/gm_fetch-demo-dev page to execute this demo.
-// @version      0.1.13-2022.06.03
+// @version      0.1.14-2022.06.03
 // @namespace    gh.alttiri
 // @match        http*://example.com/gm_fetch-demo-dev
+// @match        https://twitter.com/gm_fetch-demo-dev
 // @grant        GM_xmlhttpRequest
 // @grant        GM.xmlHttpRequest
 // ==/UserScript==
@@ -27,7 +28,7 @@ function demo() {
 
     const html = `
 <div style="display: flex; justify-content: center; flex-direction: column;" id="demo">
-    <style>#demo div {padding: 15px 0; margin: 0;} input[type="text"] {width: 90%;}</style>
+    <style>#demo div {padding: 15px 0; max-width: 720px; margin: 0 auto;} input[type="text"] {width: 90%; min-width: 320px;}</style>
     <div>
         <span><label>URL: <input id="url-input" type="text" placeholder="${defaultUrl}" list="urls"></label></span>
         <datalist id="urls">
@@ -352,18 +353,21 @@ function demo() {
     }
 }
 
-/*! GM_fetch — v0.3.4-2022.06.03-dev — https://github.com/AlttiRi/gm_fetch */
+/*! GM_fetch — v0.3.5-2022.06.03-dev — https://github.com/AlttiRi/gm_fetch */
 function getGM_fetch() {
     const GM_XHR = (typeof GM_xmlhttpRequest === "function") ? GM_xmlhttpRequest : (GM?.xmlHttpRequest);
     const isStreamSupported = GM_XHR?.RESPONSE_TYPE_STREAM;
+    let firefoxFixedFetch = false;
     const fetch = getWebPageFetch();
 
     function getWebPageFetch() { // todo wrapper (onprogress)
         let fetch = globalThis.fetch;
-        // [VM/GM + Firefox ~90+ + Enabled "Strict Tracking Protection"] requires this fix.
-        function fixFirefoxFetch() { // todo: test it more.
-            const fixRequired = globalThis.wrappedJSObject && typeof globalThis.wrappedJSObject.fetch === "function";
-            if (!fixRequired) { // It just checks is it a UserScript, or not. // Is possible to check is it Firefox?
+        // [VM/GM/FM + Firefox ~90+ + Enabled "Strict Tracking Protection" on sites with CSP (like Twitter)] require this fix.
+        // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Sharing_objects_with_page_scripts
+        function fixFirefoxFetchOnPageWithCSP() {
+            const wrappedJSObject = globalThis.wrappedJSObjec;
+            const fixRequired = wrappedJSObject && typeof wrappedJSObject.fetch === "function";
+            if (!fixRequired) {
                 return;
             }
             function fixedFetch(resource, init = {}) { // todo if `Request` is passed
@@ -371,11 +375,13 @@ function getGM_fetch() {
                     // Since `Headers` are not allowed for structured cloning.
                     init.headers = Object.fromEntries(init.headers.entries());
                 }
-                return globalThis.wrappedJSObject.fetch(cloneInto(resource, document), cloneInto(init, document));
+                delete init.extra; // Not supported currently // todo
+                return wrappedJSObject.fetch(cloneInto(resource, document), cloneInto(init, document/*, {cloneFunctions: true}*/));
             }
             fetch = fixedFetch;
+            firefoxFixedFetch = true;
         }
-        fixFirefoxFetch();
+        fixFirefoxFetchOnPageWithCSP();
         return fetch;
     }
 
@@ -737,6 +743,7 @@ function getGM_fetch() {
 
     GM_fetch.isStreamSupported = isStreamSupported;
     GM_fetch.webContextFetch = fetch;
+    GM_fetch.firefoxFixedFetch  = firefoxFixedFetch ;
 
     return GM_fetch;
 }
