@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch demo (05.26)
 // @description  GM_fetch demo. Just open https://example.com/gm_fetch-demo page to execute this demo.
-// @version      0.1.12-2022.06.01
+// @version      0.1.13-2022.06.03
 // @namespace    gh.alttiri
 // @match        http*://example.com/*
 // @grant        GM_xmlhttpRequest
@@ -70,6 +70,7 @@ function demo() {
             <button id="demo-X2" title="Should send request with additional headers">2. Headers</button>
             <button id="demo-X3" title="Should send Blob with 'xxx' text">3. Send Blob</button>
             <button id="demo-X4" title="Should abort fetch">4. Abort</button>
+            <button id="demo-X5" title="Using of Request">5. Request input</button>
         </div>
         <div class="main-demo">
             <button id="main-demo" title="Should dowbload a file from the URL">Download Blob</button>
@@ -113,13 +114,14 @@ function demo() {
     document.querySelector("#demo-4").addEventListener("click", run(demo4));
     document.querySelector("#demo-5").addEventListener("click", run(demo5));
     document.querySelector("#demo-6").addEventListener("click", run(demo6));
-    const {demoX1, demoX2, demoX3, demoX4} = getDemos();
+    const {demoX1, demoX2, demoX3, demoX4, demoX5} = getDemos();
     document.querySelector("#main-demo").addEventListener("click", run(demoX1));
     document.querySelector("#demo-X1").addEventListener("click", run(demoX1));
     document.querySelector("#demo-X0").addEventListener("click", run(() => demoX1(true)));
     document.querySelector("#demo-X2").addEventListener("click", run(demoX2));
     document.querySelector("#demo-X3").addEventListener("click", run(demoX3));
     document.querySelector("#demo-X4").addEventListener("click", run(demoX4));
+    document.querySelector("#demo-X5").addEventListener("click", run(demoX5));
 
     function getStreamDemos() {
         async function getProps() {
@@ -295,8 +297,20 @@ function demo() {
             console.log(await response.blob());
         }
 
+        async function demoX5() {
+            console.log("fetching:", url);
+            const request = new Request(url, {method: "head"});
+            const response = await selectedFetch(request, {
+                extra: {
+                    useStream: false
+                }
+            });
+            console.log("response", response);
+            console.log(await response.blob());
+        }
+
         return {
-            demoX1, demoX2, demoX3, demoX4
+            demoX1, demoX2, demoX3, demoX4, demoX5
         };
     }
 
