@@ -362,7 +362,8 @@ function getGM_fetch() {
 
     function getWebPageFetch() { // todo wrapper (onprogress)
         let fetch = globalThis.fetch;
-        // [VM/GM/FM + Firefox ~90+ + Enabled "Strict Tracking Protection" on sites with CSP (like Twitter)] require this fix.
+        // [VM/GM/FM + Firefox with "Enhanced Tracking Protection" set to "Strict" (Or "Custom" with enabled "Fingerprinters" option) 
+        // on sites with CSP (like Twitter)] requires this fix.
         // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Sharing_objects_with_page_scripts
         function fixFirefoxFetchOnPageWithCSP() {
             const wrappedJSObject = globalThis.wrappedJSObject;
@@ -382,6 +383,7 @@ function getGM_fetch() {
             firefoxFixedFetch = true;
         }
         fixFirefoxFetchOnPageWithCSP();
+        console.log({firefoxFixedFetch});
         return fetch;
     }
 
