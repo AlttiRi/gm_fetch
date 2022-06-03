@@ -273,7 +273,7 @@ function demo() {
             console.log("fetching:", url);
             const response = await selectedFetch(url, {
                 method: "post",
-                body: new Blob(["xxx"]),
+                body: new Blob(["xxx"], {type: "text/plain"}),
                 extra: {
                     useStream: false
                 }
@@ -296,8 +296,8 @@ function demo() {
         }
 
         async function demoX5() {
-            console.log("fetching:", url);
             const request = new Request(url, {method: "head"});
+            console.log("fetching:", url, request);
             const response = await selectedFetch(request, {
                 extra: {
                     useStream: false
@@ -365,7 +365,7 @@ function getGM_fetch() {
         // [VM/GM/FM + Firefox ~90+ + Enabled "Strict Tracking Protection" on sites with CSP (like Twitter)] require this fix.
         // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Sharing_objects_with_page_scripts
         function fixFirefoxFetchOnPageWithCSP() {
-            const wrappedJSObject = globalThis.wrappedJSObjec;
+            const wrappedJSObject = globalThis.wrappedJSObject;
             const fixRequired = wrappedJSObject && typeof wrappedJSObject.fetch === "function";
             if (!fixRequired) {
                 return;
