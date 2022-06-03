@@ -1,11 +1,11 @@
-/*! GM_fetch — v0.3.3-2022.06.01-dev — https://github.com/AlttiRi/gm_fetch */
+/*! GM_fetch — v0.3.4-2022.06.03-dev — https://github.com/AlttiRi/gm_fetch */
 
 function getGM_fetch() {
     const GM_XHR = (typeof GM_xmlhttpRequest === "function") ? GM_xmlhttpRequest : (GM?.xmlHttpRequest);
     const isStreamSupported = GM_XHR?.RESPONSE_TYPE_STREAM;
     const fetch = getWebPageFetch();
 
-    function getWebPageFetch() {
+    function getWebPageFetch() { // todo wrapper (onprogress)
         let fetch = globalThis.fetch;
         // [VM/GM + Firefox ~90+ + Enabled "Strict Tracking Protection"] requires this fix.
         function fixFirefoxFetch() { // todo: test it more.
@@ -313,7 +313,7 @@ function getGM_fetch() {
                         method,
                         headers,
                         responseType: "blob",
-                        onload(gmResponse) {
+                        onload(gmResponse) { // todo getOnCancel
                             onDone();
                             resolve(gmResponse.response);
                         },
