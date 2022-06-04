@@ -1,29 +1,99 @@
-/*! GM_fetch — v0.3.4-2022.06.03-dev — https://github.com/AlttiRi/gm_fetch */
-
+/*! GM_fetch — v0.3.6-2022.06.04-dev — https://github.com/AlttiRi/gm_fetch */
 function getGM_fetch() {
     const GM_XHR = (typeof GM_xmlhttpRequest === "function") ? GM_xmlhttpRequest : (GM?.xmlHttpRequest);
     const isStreamSupported = GM_XHR?.RESPONSE_TYPE_STREAM;
+    let firefoxFixedFetch = false;
     const fetch = getWebPageFetch();
 
-    function getWebPageFetch() { // todo wrapper (onprogress)
+    const crError = new Error().stack.startsWith("Error"); // Chromium Error
+    // In Chromium original `DOMException` contains stack trace, however, manually created does not have it.
+
+    /**
+     * @param {string, URL, Request} resource
+     * @param fetchInit */
+    async function handleBaseParams(resource, fetchInit = {}) {
+        let url;
+        if (resource?.url) {
+            const {url: u, init} = await destroyRequest(resource);
+            url = u;
+            fetchInit = {...init, ...fetchInit};
+        } else {
+            url = new URL(resource, location).href;
+        }
+        return {url, fetchInit};
+    }
+    /** @param {Request} request */
+    async function destroyRequest(request) {
+        const url = request.url;
+        const method = request.method;
+        const headers = request.headers;
+        const signal = request.signal;
+        const referrer = request.referrer !== "referrer" ? request.referrer : undefined; // todo test
+
+        let body;
+        if (!["GET", "HEAD"].includes(method)) {
+            body = await request.blob();
+        }
+        return {url, init: {method, signal, headers, body}};
+    }
+
+    function getWebPageFetch() {
         let fetch = globalThis.fetch;
-        // [VM/GM + Firefox ~90+ + Enabled "Strict Tracking Protection"] requires this fix.
-        function fixFirefoxFetch() { // todo: test it more.
-            const fixRequired = globalThis.wrappedJSObject && typeof globalThis.wrappedJSObject.fetch === "function";
-            if (!fixRequired) { // It just checks is it a UserScript, or not. // Is possible to check is it Firefox?
+        // [VM/GM/FM + Firefox with "Enhanced Tracking Protection" set to "Strict" (Or "Custom" with enabled "Fingerprinters" option)
+        // on sites with CSP (like Twitter, GitHub)] requires this fix.
+        // They run the code as a content script. TM disables CSP with extra HTTP headers.
+        // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Sharing_objects_with_page_scripts
+        function fixFirefoxFetchOnPageWithCSP() {
+            const wrappedJSObject = globalThis.wrappedJSObject;
+            const fixRequired = wrappedJSObject && typeof wrappedJSObject.fetch === "function";
+            if (!fixRequired) {
                 return;
             }
-            function fixedFetch(resource, init = {}) { // todo if `Request` is passed
+            const isTM = (function() {
+                const request = new wrappedJSObject.Request(""); // Firefox content script's `Request` does not support relative URLs
+                try {
+                    return request === cloneInto(request);
+                } catch {
+                    console.log("[ujs][fixFirefoxFetchOnPageWithCSP] Request:", Request);
+                    return false;
+                }
+            })();
+            if (isTM) {
+                return;
+            }
+            async function fixedFetch(resource, opts = {}) {
+                const {url, fetchInit: init} = await handleBaseParams(resource, opts);
                 if (init.headers instanceof Headers) {
+                    console.log("[ujs][fixedFetch] Headers", init.headers);
                     // Since `Headers` are not allowed for structured cloning.
                     init.headers = Object.fromEntries(init.headers.entries());
                 }
-                return globalThis.wrappedJSObject.fetch(cloneInto(resource, document), cloneInto(init, document));
+                if (/** @type {AbortSignal} */ init.signal) {
+                    if (init.signal.aborted) {
+                        throw new DOMException("The user aborted a request." + (crError ? new Error().stack.slice(5) : ""), "AbortError");
+                    }
+                    console.warn("[ujs][fixedFetch] delete signal");
+                    delete init.signal; // Can't be structured cloned
+                }
+                return wrappedJSObject.fetch(cloneInto(url, document), cloneInto(init, document/*, {cloneFunctions: true}*/));
             }
             fetch = fixedFetch;
+            firefoxFixedFetch = true;
         }
-        fixFirefoxFetch();
-        return fetch;
+        fixFirefoxFetchOnPageWithCSP();
+        console.log({firefoxFixedFetch});
+
+        async function enhancedFetch(resource, opts) {
+            const onprogress = opts.extra?.onprogress;
+            delete opts.extra;
+            const response = await fetch(resource, opts);
+            if (onprogress) {
+                return responseProgressProxy(response, onprogress);
+            }
+            return response;
+        }
+
+        return enhancedFetch;
     }
 
     /** The default Response always has {type: "default", redirected: false, url: ""} */
@@ -215,6 +285,8 @@ function getGM_fetch() {
      const blob = await response.blob();
      * @return {Promise<Response>} */
     async function GM_fetch(url, fetchInit = {}) {
+        ({url, fetchInit} = await handleBaseParams(url, fetchInit));
+
         if (fetchInit.extra?.webContext) {
             delete fetchInit.extra;
             return fetch(url, fetchInit);
@@ -252,6 +324,9 @@ function getGM_fetch() {
             useStream, onprogress, extra
         } = handleParams(fetchInit);
 
+        if (signal?.aborted) {
+            throw new DOMException("The user aborted a request." + (crError ? new Error().stack.slice(5) : ""), "AbortError");
+        }
         let abortCallback;
         let done = false;
         function handleAbort(gmAbort) {
@@ -287,16 +362,20 @@ function getGM_fetch() {
             }
         }
 
-        function getOnCancel(reject) {
+        function getOnDones({resolve, reject}) {
             return {
-                onerror(gmResponse) {
+                onload(gmResponse) {
+                    onDone();
+                    resolve?.(gmResponse.response); // Not required for `responseType: "stream"`
+                },
+                onerror() {
                     onDone();
                     reject(new TypeError("Failed to fetch"));
                 },
                 onabort() {
                     onDone();
-                    reject(new DOMException("The user aborted a request.", "AbortError"));
-                },
+                    reject(new DOMException("The user aborted a request." + (crError ? new Error().stack.slice(5) : ""), "AbortError"));
+                }
             };
         }
 
@@ -304,30 +383,6 @@ function getGM_fetch() {
             const _onprogress = onprogress;
             let onProgressProps = {}; // Will be inited on HEADERS_RECEIVED. It used to have the same behaviour in TM and VM.
             return new Promise((resolve, _reject) => {
-                const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
-                const blobPromise = new Promise((resolve, reject) => {
-                    const {onabort, onerror} = getOnCancel(reject);
-                    const {abort} = GM_XHR({
-                        ...extra,
-                        url,
-                        method,
-                        headers,
-                        responseType: "blob",
-                        onload(gmResponse) { // todo getOnCancel
-                            onDone();
-                            resolve(gmResponse.response);
-                        },
-                        onreadystatechange,
-                        onprogress: _onprogress ? ({loaded/*, total, lengthComputable*/}) => {
-                            _onprogress({loaded, ...onProgressProps});
-                        } : undefined,
-                        onerror,
-                        onabort,
-                        data: body,
-                    });
-                    handleAbort(abort);
-                });
-                blobPromise.catch(_reject);
                 function onHeadersReceived(gmResponse) {
                     const {responseHeaders, status, statusText, finalUrl} = gmResponse;
                     const headers = parseHeaders(responseHeaders);
@@ -337,13 +392,46 @@ function getGM_fetch() {
                     onProgressProps = getOnProgressProps(response);
                     resolve(response);
                 }
+                const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
+                const blobPromise = new Promise((resolve, reject) => {
+                    const {onload, onabort, onerror} = getOnDones({resolve, reject});
+                    const {abort} = GM_XHR({
+                        ...extra,
+                        url,
+                        method,
+                        headers,
+                        responseType: "blob",
+                        onreadystatechange,
+                        onprogress: _onprogress ? ({loaded/*, total, lengthComputable*/}) => {
+                            _onprogress({loaded, ...onProgressProps});
+                        } : undefined,
+                        onload,
+                        onerror,
+                        onabort,
+                        data: body,
+                    });
+                    handleAbort(abort);
+                });
+                blobPromise.catch(_reject);
             });
         }
 
         function streamFetch() {
             return new Promise((resolve, reject) => {
+                function onHeadersReceived(gmResponse) {
+                    const {
+                        responseHeaders, status, statusText, finalUrl, response: readableStream
+                    } = gmResponse;
+                    const headers = parseHeaders(responseHeaders);
+                    const redirected = url !== finalUrl;
+                    let response = new ResponseEx(readableStream, {headers, status, statusText, url: finalUrl, redirected});
+                    if (onprogress) {
+                        response = responseProgressProxy(response, onprogress);
+                    }
+                    resolve(response);
+                }
                 const onreadystatechange = getOnReadyStateChange({onHeadersReceived});
-                const {onabort, onerror} = getOnCancel(reject);
+                const {onload, onabort, onerror} = getOnDones({reject});
                 const {abort} = GM_XHR({
                     ...extra,
                     url,
@@ -351,27 +439,13 @@ function getGM_fetch() {
                     headers,
                     responseType: "stream",
                     /* fetch: true, */ // Not required, since it already has `responseType: "stream"`.
-                    onload(gmResponse) {
-                        onDone();
-                    },
                     onreadystatechange,
+                    onload,
                     onerror,
                     onabort,
                     data: body,
                 });
                 handleAbort(abort);
-                function onHeadersReceived(gmResponse) {
-                    const {
-                        responseHeaders, status, statusText, finalUrl, response: readableStream
-                    } = gmResponse;
-                    const headers = parseHeaders(responseHeaders);
-                    const redirected = url !== finalUrl;
-                    let response = new ResponseEx(readableStream, {headers, status, statusText, url, redirected});
-                    if (onprogress) {
-                        response = responseProgressProxy(response, onprogress);
-                    }
-                    resolve(response);
-                }
             });
         }
 
@@ -384,6 +458,7 @@ function getGM_fetch() {
 
     GM_fetch.isStreamSupported = isStreamSupported;
     GM_fetch.webContextFetch = fetch;
+    GM_fetch.firefoxFixedFetch = firefoxFixedFetch;
 
     return GM_fetch;
 }
