@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch dev demo (06.03)
 // @description  GM_fetch demo + GM_fetch code. For dev purpose.
-// @version      0.1.14-2022.06.03
+// @version      0.1.15-2022.06.04
 // @namespace    gh.alttiri
 // @match        http*://example.com/gm_fetch-demo-dev*
 // @match        https://twitter.com/gm_fetch-demo-dev*
@@ -12,7 +12,7 @@
 demo();
 function demo() {
     const GM_fetch = getGM_fetch();         // Just "import" it to use it
-    const fetch = GM_fetch.webContextFetch; // Default `fetch` from web page context
+    const fetch = GM_fetch.webContextFetch; // A wrapper over the default `fetch` from web page context
 
     const defaultUrl = new URL(location).searchParams.get("url") || location.href;
     const onlyMainDemo = new URL(location).searchParams.get("only-main-demo");
@@ -263,7 +263,7 @@ function demo() {
                     "xxx": "1"
                 },
                 extra: {
-                    useStream: false
+                    useStream
                 }
             });
             console.log("response", response);
@@ -275,7 +275,7 @@ function demo() {
                 method: "post",
                 body: new Blob(["xxx"], {type: "text/plain"}),
                 extra: {
-                    useStream: false
+                    useStream
                 }
             });
             console.log("response", response);
@@ -288,7 +288,7 @@ function demo() {
             const response = await selectedFetch(url, {
                 signal: controller.signal,
                 extra: {
-                    useStream: false
+                    useStream
                 }
             });
             console.log("response", response);
@@ -300,7 +300,7 @@ function demo() {
             console.log("fetching:", url, request);
             const response = await selectedFetch(request, {
                 extra: {
-                    useStream: false
+                    useStream
                 }
             });
             console.log("response", response);
@@ -353,17 +353,50 @@ function demo() {
     }
 }
 
-/*! GM_fetch — v0.3.5-2022.06.03-dev — https://github.com/AlttiRi/gm_fetch */
+/*! GM_fetch — v0.3.6-2022.06.04-dev — https://github.com/AlttiRi/gm_fetch */
 function getGM_fetch() {
     const GM_XHR = (typeof GM_xmlhttpRequest === "function") ? GM_xmlhttpRequest : (GM?.xmlHttpRequest);
     const isStreamSupported = GM_XHR?.RESPONSE_TYPE_STREAM;
     let firefoxFixedFetch = false;
     const fetch = getWebPageFetch();
 
-    function getWebPageFetch() { // todo wrapper (onprogress)
+    const crError = new Error().stack.startsWith("Error"); // Chromium Error
+    // In Chromium original `DOMException` contains stack trace, however, manually created does not have it.
+
+    /**
+     * @param {string, URL, Request} resource
+     * @param fetchInit */
+    async function handleBaseParams(resource, fetchInit = {}) {
+        let url;
+        if (resource?.url) {
+            const {url: u, init} = await destroyRequest(resource);
+            url = u;
+            fetchInit = {...init, ...fetchInit};
+        } else {
+            url = new URL(resource, location).href;
+        }
+        return {url, fetchInit};
+    }
+    /** @param {Request} request */
+    async function destroyRequest(request) {
+        const url = request.url;
+        const method = request.method;
+        const headers = request.headers;
+        const signal = request.signal;
+        const referrer = request.referrer !== "referrer" ? request.referrer : undefined; // todo test
+
+        let body;
+        if (!["GET", "HEAD"].includes(method)) {
+            body = await request.blob();
+        }
+        return {url, init: {method, signal, headers, body}};
+    }
+
+    function getWebPageFetch() {
         let fetch = globalThis.fetch;
         // [VM/GM/FM + Firefox with "Enhanced Tracking Protection" set to "Strict" (Or "Custom" with enabled "Fingerprinters" option)
-        // on sites with CSP (like Twitter)] requires this fix.
+        // on sites with CSP (like Twitter, GitHub)] requires this fix.
+        // They run the code as a content script. TM disables CSP with extra HTTP headers.
         // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Sharing_objects_with_page_scripts
         function fixFirefoxFetchOnPageWithCSP() {
             const wrappedJSObject = globalThis.wrappedJSObject;
@@ -371,21 +404,51 @@ function getGM_fetch() {
             if (!fixRequired) {
                 return;
             }
-            function fixedFetch(resource, init = {}) { // todo if `Request` is passed
+            const isTM = (function() {
+                const request = new wrappedJSObject.Request(""); // Firefox content script's `Request` does not support relative URLs
+                try {
+                    return request === cloneInto(request);
+                } catch {
+                    console.log("[ujs][fixFirefoxFetchOnPageWithCSP] Request:", Request);
+                    return false;
+                }
+            })();
+            if (isTM) {
+                return;
+            }
+            async function fixedFetch(resource, opts = {}) {
+                const {url, fetchInit: init} = await handleBaseParams(resource, opts);
                 if (init.headers instanceof Headers) {
+                    console.log("[ujs][fixedFetch] Headers", init.headers);
                     // Since `Headers` are not allowed for structured cloning.
                     init.headers = Object.fromEntries(init.headers.entries());
                 }
-                delete init.extra; // Not supported currently // todo
-                delete init.signal; // Can't be structured cloned // todo?
-                return wrappedJSObject.fetch(cloneInto(resource, document), cloneInto(init, document, /*{cloneFunctions: true}*/));
+                if (/** @type {AbortSignal} */ init.signal) {
+                    if (init.signal.aborted) {
+                        throw new DOMException("The user aborted a request." + (crError ? new Error().stack.slice(5) : ""), "AbortError");
+                    }
+                    console.warn("[ujs][fixedFetch] delete signal");
+                    delete init.signal; // Can't be structured cloned
+                }
+                return wrappedJSObject.fetch(cloneInto(url, document), cloneInto(init, document/*, {cloneFunctions: true}*/));
             }
             fetch = fixedFetch;
             firefoxFixedFetch = true;
         }
         fixFirefoxFetchOnPageWithCSP();
         console.log({firefoxFixedFetch});
-        return fetch;
+
+        async function enhancedFetch(resource, opts) {
+            const onprogress = opts.extra?.onprogress;
+            delete opts.extra;
+            const response = await fetch(resource, opts);
+            if (onprogress) {
+                return responseProgressProxy(response, onprogress);
+            }
+            return response;
+        }
+
+        return enhancedFetch;
     }
 
     /** The default Response always has {type: "default", redirected: false, url: ""} */
@@ -577,11 +640,7 @@ function getGM_fetch() {
      const blob = await response.blob();
      * @return {Promise<Response>} */
     async function GM_fetch(url, fetchInit = {}) {
-        if (url?.url !== undefined) { // if `new Request("")`
-            ({url} = url);
-        } else {
-            url = new URL(url, location);
-        }
+        ({url, fetchInit} = await handleBaseParams(url, fetchInit));
 
         if (fetchInit.extra?.webContext) {
             delete fetchInit.extra;
@@ -620,6 +679,9 @@ function getGM_fetch() {
             useStream, onprogress, extra
         } = handleParams(fetchInit);
 
+        if (signal.aborted) {
+            throw new DOMException("The user aborted a request." + (crError ? new Error().stack.slice(5) : ""), "AbortError");
+        }
         let abortCallback;
         let done = false;
         function handleAbort(gmAbort) {
@@ -667,7 +729,7 @@ function getGM_fetch() {
                 },
                 onabort() {
                     onDone();
-                    reject(new DOMException("The user aborted a request.", "AbortError"));
+                    reject(new DOMException("The user aborted a request." + (crError ? new Error().stack.slice(5) : ""), "AbortError"));
                 }
             };
         }
