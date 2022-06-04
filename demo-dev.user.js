@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch dev demo (06.03)
 // @description  GM_fetch demo + GM_fetch code. For dev purpose.
-// @version      0.1.15-2022.06.04
+// @version      0.1.16-2022.06.04
 // @namespace    gh.alttiri
 // @match        http*://example.com/gm_fetch-demo-dev*
 // @match        https://twitter.com/gm_fetch-demo-dev*
@@ -9,7 +9,14 @@
 // @grant        GM.xmlHttpRequest
 // ==/UserScript==
 
-demo();
+(async function runner() {
+    if (location.host === "twitter.com") {
+        await new Promise(resolve => setTimeout(resolve, 800));
+    }
+    console.clear();
+    demo();
+})();
+
 function demo() {
     const GM_fetch = getGM_fetch();         // Just "import" it to use it
     const fetch = GM_fetch.webContextFetch; // A wrapper over the default `fetch` from web page context
@@ -49,17 +56,8 @@ function demo() {
             <br>
             <label><input type="radio" name="fetch-type" value="fetch">fetch</label>
         </div>
-        <style>button {padding: 5px; margin: 5px;}</style>
+        <style>button {padding: 5px; margin: 5px;} .red {color: red;}</style>
         <style>.demos {display: ${onlyMainDemo ? "none;" : "auto;"}} .main-demo {display: ${onlyMainDemo ? "auto;" : "none;"}}</style>
-        <div class="demos">
-            ReadableStream demos<br>
-            <button id="demo-1" title="Should throw: 'TypeError: body stream already read'">Demo 1</button>
-            <button id="demo-2" title="Should throw: 'TypeError: body stream is locked'">Demo 2</button>
-            <button id="demo-3" title="Should throw: 'This readable stream reader has been released and cannot be used to read from its previous owner stream'">Demo 3</button>
-            <button id="demo-4" title="Should throw: 'TypeError: body stream already read'">Demo 4</button>
-            <button id="demo-5" title="Should log readed with \`reader.read()\` bytes lenght">Demo 5</button>
-            <button id="demo-6" title="Should log blob size">Demo 6</button>
-        </div>
         <div class="demos">
             Demos<br>
             <button id="demo-X0" title="Should dowbload with StreamSaver. May not work in Firefox.">0. Download with StreamSaver</button>
@@ -69,6 +67,16 @@ function demo() {
             <button id="demo-X3" title="Should send Blob with 'xxx' text">3. Send Blob</button>
             <button id="demo-X4" title="Should abort fetch">4. Abort</button>
             <button id="demo-X5" title="Using of Request">5. Request input</button>
+        </div>
+        <div class="demos">
+            ReadableStream demos<br>
+            <button id="demo-1" class="red" title="Should throw: 'TypeError: body stream already read'">1. already read</button>
+            <button id="demo-2" class="red" title="Should throw: 'TypeError: body stream already read'">2. already read</button>
+            <button id="demo-3" class="red" title="Should throw: 'TypeError: body stream is locked'">3. is locked</button>
+            <button id="demo-4" class="red" title="Should throw: 'This readable stream reader has been released and cannot be used to read from its previous owner stream'">4. been released</button>
+            <br>
+            <button id="demo-5" title="Should log readed with \`reader.read()\` bytes lenght">5. Count size</button>
+            <button id="demo-6" title="Should log Blob size">6. Log Blob size</button>
         </div>
         <div class="main-demo">
             <button id="main-demo" title="Should dowbload a file from the URL">Download Blob</button>
@@ -156,13 +164,8 @@ function demo() {
         async function demo2(fetch) {
             let {response, rs, reader} = await getProps(fetch);
 
-            console.log(await response.blob());
-            logLockProps({response, rs});
-        }
-        async function demo3(fetch) {
-            let {response, rs, reader} = await getProps(fetch);
-
             reader.releaseLock();
+            reader = rs.getReader();
             console.log({response, rs, reader});
             logLockProps({response, rs});
 
@@ -175,11 +178,16 @@ function demo() {
             console.log(await response.blob());
             logLockProps({response, rs});
         }
+        async function demo3(fetch) {
+            let {response, rs, reader} = await getProps(fetch);
+
+            console.log(await response.blob());
+            logLockProps({response, rs});
+        }
         async function demo4(fetch) {
             let {response, rs, reader} = await getProps(fetch);
 
             reader.releaseLock();
-            reader = rs.getReader();
             console.log({response, rs, reader});
             logLockProps({response, rs});
 
@@ -679,7 +687,7 @@ function getGM_fetch() {
             useStream, onprogress, extra
         } = handleParams(fetchInit);
 
-        if (signal.aborted) {
+        if (signal?.aborted) {
             throw new DOMException("The user aborted a request." + (crError ? new Error().stack.slice(5) : ""), "AbortError");
         }
         let abortCallback;
