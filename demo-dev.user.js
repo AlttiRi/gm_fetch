@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GM_fetch dev demo (06.03)
 // @description  GM_fetch demo + GM_fetch code. For dev purpose.
-// @version      0.1.16-2022.06.04
+// @version      0.1.17-2022.06.04
 // @namespace    gh.alttiri
 // @match        http*://example.com/gm_fetch-demo-dev*
 // @match        https://twitter.com/gm_fetch-demo-dev*
@@ -65,7 +65,7 @@ function demo() {
             <button id="demo-X1" title="Should dowbload a file from the URL">1. Download Blob</button>
             <button id="demo-X2" title="Should send request with additional headers">2. Headers</button>
             <button id="demo-X3" title="Should send Blob with 'xxx' text">3. Send Blob</button>
-            <button id="demo-X4" title="Should abort fetch">4. Abort</button>
+            <button id="demo-X4" class="red" title="Should abort fetch">4. Abort</button>
             <button id="demo-X5" title="Using of Request">5. Request input</button>
         </div>
         <div class="demos">
