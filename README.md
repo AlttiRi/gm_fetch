@@ -16,19 +16,7 @@ The more detail description will be later.
 
 Okay, if just you need a **simple** wraper, here is it:
 ```js
-// The simplified `fetch` — wrapper for `GM_xmlhttpRequest`
-/* Using:
-// @grant       GM_xmlhttpRequest
-
-const response = await fetch(url);
-const {status, statusText} = response;
-const lastModified = response.headers.get("last-modified");
-const blob = await response.blob();
-*/
-async function GM_fetch(url, init = {}) {
-    const defaultInit = {method: "get"};
-    const {headers, method} = {...defaultInit, ...init};
-
+async function GM_fetch(url, {method = "get", headers} = {}) {
     return new Promise((resolve, _reject) => {
         const blobPromise = new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
@@ -36,7 +24,7 @@ async function GM_fetch(url, init = {}) {
                 method,
                 headers,
                 responseType: "blob",
-                onload: (response) => resolve(response.response),
+                onload: response => resolve(response.response),
                 onerror: reject,
                 onreadystatechange: onHeadersReceived
             });
@@ -85,7 +73,8 @@ Demo for the simple wrapper:
 
 (async function demo() {
   const url = "https://i.imgur.com/2wD3VJA.jpg";
-  const response = await GM_fetch(url);
+  const refererHeader = "https://imgur.com/";
+  const response = await GM_fetch(url, {headers: {referer: refererHeader}});
   const {status, statusText, ok} = response;
   const lastModified = response.headers.get("last-modified");
   console.log(url, {status, statusText, ok, lastModified});
