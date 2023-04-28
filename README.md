@@ -14,7 +14,7 @@ The more detail description will be later.
 
 ## Simple wrapper
 
-Okay, if just you need a **simple** wraper, here is it:
+Okay, if you just need a **simple** wrapper, here is it:
 ```js
 async function GM_fetch(url, {method = "get", headers} = {}) {
     return new Promise((resolve, _reject) => {
@@ -65,7 +65,7 @@ function parseHeaders(headersString) {
 }
 ```
 
-Demo for the simple wrapper:
+Demo for the simple wrapper ([gm_fetch_simple_demo.user.js](https://github.com/AlttiRi/gm_fetch/raw/master/gm_fetch_simple_demo.user.js)):
 ```js
 // ...
 // @grant       GM_xmlhttpRequest
