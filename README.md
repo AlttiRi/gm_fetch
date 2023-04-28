@@ -12,6 +12,8 @@ The more detail description will be later.
 
 ---
 
+## Simple wrapper
+
 Okay, if just you need a **simple** wraper, here is it:
 ```js
 // The simplified `fetch` — wrapper for `GM_xmlhttpRequest`
@@ -75,7 +77,37 @@ function parseHeaders(headersString) {
 }
 ```
 
+Demo for the simple wrapper:
+```js
+// ...
+// @grant       GM_xmlhttpRequest
+// ==/UserScript==
 
+(async function demo() {
+  const url = "https://i.imgur.com/2wD3VJA.jpg";
+  const response = await GM_fetch(url);
+  const {status, statusText, ok} = response;
+  const lastModified = response.headers.get("last-modified");
+  console.log(url, {status, statusText, ok, lastModified});
+
+  const blob = await response.blob();
+  const name = url.split("/").pop();
+  downloadBlob(blob, name, url);
+})();
+
+function downloadBlob(blob, name, url) {
+  const anchor = document.createElement("a");
+  anchor.setAttribute("download", name || "");
+  const blobUrl = URL.createObjectURL(blob);
+  anchor.href = blobUrl + (url ? ("#" + url) : "");
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+}
+
+// ...
+// async function GM_fetch(url, init = {}) {
+// ...
+```
 
 ---
 
