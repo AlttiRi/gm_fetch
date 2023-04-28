@@ -64,6 +64,7 @@ function parseHeaders(headersString) {
     return headers;
 }
 ```
+It supports only `method` and `headers` keys of [`fetch`'s options parament](https://developer.mozilla.org/en-US/docs/Web/API/fetch#parameters).
 
 Demo for the simple wrapper ([gm_fetch_simple_demo.user.js](https://github.com/AlttiRi/gm_fetch/raw/master/gm_fetch_simple_demo.user.js)):
 ```js
