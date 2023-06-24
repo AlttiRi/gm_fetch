@@ -26,6 +26,7 @@ async function GM_fetch(url, {method = "get", headers} = {}) {
                 responseType: "blob",
                 onload: response => resolve(response.response),
                 onerror: reject,
+                ontimeout: reject,
                 onreadystatechange: onHeadersReceived
             });
         });
