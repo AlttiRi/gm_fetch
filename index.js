@@ -102,7 +102,7 @@ function getGM_fetch() {
         constructor(body, {headers, status, statusText, url, redirected}) {
             super(body, {status, statusText, headers: {
                     ...headers,
-                    "content-type": headers.get("content-type").split("; ")[0] // Fixes Blob type ("text/html; charset=UTF-8") in TM
+                    "content-type": headers.get("content-type")?.split("; ")[0] // Fixes Blob type ("text/html; charset=UTF-8") in TM
                 }});
             this._url = url;
             this._redirected = redirected;
