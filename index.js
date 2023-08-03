@@ -99,18 +99,21 @@ function getGM_fetch() {
     /** The default Response always has {type: "default", redirected: false, url: ""} */
     class ResponseEx extends Response {
         [Symbol.toStringTag] = "ResponseEx";
-        constructor(body, {headers, status, statusText, url, redirected}) {
+        constructor(body, {headers, status, statusText, url, redirected, type, ok}) {
             super(body, {status, statusText, headers: {
                     ...headers,
                     "content-type": headers.get("content-type")?.split("; ")[0] // Fixes Blob type ("text/html; charset=UTF-8") in TM
                 }});
+            this._type = type;
             this._url = url;
             this._redirected = redirected;
+            this._ok = ok;
             this._headers = headers; // `HeadersLike` is more user-friendly for debug than the original `Headers` object
         }
         get redirected() { return this._redirected; }
         get url() { return this._url; }
-        get type() { return "basic"; }  // todo: if "cors"
+        get type() { return this._type || "basic"; } // todo: if "cors"
+        get ok() { return this._ok; }
         /** @returns {HeadersLike} */
         get headers() { return this._headers; }
     }
